@@ -24,6 +24,8 @@ Desktop app (tkinter + plain JSON files) for logging billable school visits and 
 - Visit records snapshot billing fields from the client, so changing a client's rate must never rewrite past visits.
 - Mileage is tracked per visit but is deliberately not shown on invoices.
 - Dates are stored as ISO `YYYY-MM-DD` (sorts correctly) and shown as `DD/MM/YYYY`. Convert only at the UI/print boundary with `models.format_display_date`; use `ui/date_picker.DatePicker` for date entry.
+- Times are 24-hour `HH:MM`, zero-padded (so they sort as text). Use `ui/time_picker.TimePicker` for time entry and `models.normalize_time` to validate/normalise.
+- The version number lives only in `timetracker/__init__.py` (`__version__`); `pyproject.toml` reads it. Bump it there and nowhere else.
 - Currency is GBP (£). Python 3.9+ compatible.
 - Keep UI logic out of `models`, `storage`, `invoice` and `tax_report` so they stay testable without a display. Add tests in `tests/` for logic changes.
 - `storage.py` is designed to be swappable; keep its method signatures stable.
