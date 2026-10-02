@@ -28,6 +28,7 @@ timetracker/
   ui/
     app.py            main window (entry screen + Events/Invoice menus)
     record_tab.py     daily workflow: pick date -> pick event -> save visit
+    date_picker.py    read-only DD/MM/YYYY box with calendar popup
     clients_dialog.py modal dialog wrapping the event management panel
     clients_tab.py    management panel for the reusable event definitions
     business_dialog.py edit your business/invoice details
@@ -62,8 +63,10 @@ timetracker
 
 1. Click **Manage events…** (or the *Events* menu) and define your regular
    visits once in the dialog (description, school, day, times, hours, rate).
-2. Back on the entry screen, set the date (defaults to today; use *Today* / ◀ /
-   ▶ to move around). Events matching that weekday are listed first.
+2. Back on the entry screen, set the date (defaults to today). Click the date
+   box or 📅 to open the calendar picker, or use *Today* / ◀ / ▶ to move around.
+   Dates are shown as DD/MM/YYYY and can't be typed, so they are always valid.
+   Events matching that weekday are listed first.
 3. Pick an event — the form is **pre-filled automatically**. Adjust anything
    that differed on the day, add notes, and **Save visit**.
 4. The lower list shows every recorded visit for that month, with **day** and

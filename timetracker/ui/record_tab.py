@@ -5,7 +5,7 @@ billing fields if the actual visit differed, and save it as a VisitRecord for
 that date. The lower half lists everything already recorded in the selected
 month with per-day and month totals — the numbers that feed an invoice.
 
-    ┌ Date [2026-07-19] [Today] [◀] [▶]   Event [ combo ] [Load] ┐
+    ┌ Date [19/07/2026] [Today] [◀] [▶]   Event [ combo ] [Load] ┐
     │ Description / School / Times / Hours / Rate / Notes  form   │
     │ [New] [Save] [Delete]                    Amount: 90.00      │
     ├────────────────────────────────────────────────────────────┤
@@ -17,7 +17,7 @@ month with per-day and month totals — the numbers that feed an invoice.
 from __future__ import annotations
 
 import tkinter as tk
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from tkinter import messagebox, ttk
 
 from ..models import (
@@ -26,8 +26,10 @@ from ..models import (
     Client,
     VisitRecord,
     compute_hours,
+    format_display_date,
     parse_time,
 )
+from .date_picker import DatePicker
 from ..storage import Storage
 from .style import ACCENT, BORDER, INK, SURFACE
 
@@ -80,13 +82,9 @@ class RecordTab(ttk.Frame):
         top.pack(fill="x")
 
         ttk.Label(top, text="Date").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        self.date_var = tk.StringVar(value=date.today().strftime(DATE_FORMAT))
-        date_entry = ttk.Entry(top, textvariable=self.date_var, width=12)
-        date_entry.grid(row=0, column=1, sticky="w")
-        # Reloading on <Return>/focus-out keeps the records list and event
-        # ordering in sync with whatever date is typed.
-        date_entry.bind("<Return>", lambda _e: self._on_date_change())
-        date_entry.bind("<FocusOut>", lambda _e: self._on_date_change())
+        # Picking a date reloads the records list and event ordering.
+        self.date_picker = DatePicker(top, on_change=self._on_date_change)
+        self.date_picker.grid(row=0, column=1, sticky="w")
 
         ttk.Button(top, text="Today", command=self._go_today).grid(
             row=0, column=2, padx=4)
@@ -227,28 +225,17 @@ class RecordTab(ttk.Frame):
     # ------------------------------------------------------------------ #
     # Date helpers
     # ------------------------------------------------------------------ #
-    def _parse_date(self) -> date | None:
-        try:
-            return datetime.strptime(self.date_var.get().strip(),
-                                     DATE_FORMAT).date()
-        except ValueError:
-            return None
+    def _selected_date(self) -> date:
+        return self.date_picker.get_date()
 
     def _go_today(self) -> None:
-        self.date_var.set(date.today().strftime(DATE_FORMAT))
-        self._on_date_change()
+        self.date_picker.set_date(date.today())
 
     def _shift_day(self, delta: int) -> None:
-        d = self._parse_date()
-        if d is None:
-            messagebox.showerror("Invalid date", "Use YYYY-MM-DD.")
-            return
-        self.date_var.set((d + timedelta(days=delta)).strftime(DATE_FORMAT))
-        self._on_date_change()
+        self.date_picker.set_date(self._selected_date()
+                                  + timedelta(days=delta))
 
     def _on_date_change(self) -> None:
-        if self._parse_date() is None:
-            return  # Silent on partial typing; validated on save.
         self.refresh_clients()
         self.reload_records()
 
@@ -259,8 +246,7 @@ class RecordTab(ttk.Frame):
         """Rebuild the event dropdown; events matching the selected date's
         weekday are listed first so the common case is one click away."""
         clients = self.storage.list_clients()
-        d = self._parse_date()
-        target_day = WEEKDAYS[d.weekday()] if d else None
+        target_day = WEEKDAYS[self._selected_date().weekday()]
 
         def sort_key(c: Client):
             return (c.regular_day != target_day, c.description.lower())
@@ -283,11 +269,8 @@ class RecordTab(ttk.Frame):
         client = self._event_index.get(label)
         if client is None:
             return  # Nothing selected (or a stale selection) — ignore.
-        d = self._parse_date()
-        if d is None:
-            messagebox.showerror("Invalid date", "Use YYYY-MM-DD.")
-            return
-        record = VisitRecord.from_client(client, d.strftime(DATE_FORMAT))
+        record = VisitRecord.from_client(
+            client, self._selected_date().strftime(DATE_FORMAT))
         self._current_record_id = None  # Loading an event starts a new visit.
         if self.tree.selection():
             self.tree.selection_remove(self.tree.selection())
@@ -341,10 +324,7 @@ class RecordTab(ttk.Frame):
         self.amount_var.set(f"{amount:.2f}")
 
     def _validate(self) -> VisitRecord | None:
-        d = self._parse_date()
-        if d is None:
-            messagebox.showerror("Invalid date", "Date must be YYYY-MM-DD.")
-            return None
+        d = self._selected_date()
         description = self.vars["description"].get().strip()
         if not description:
             messagebox.showerror("Missing data", "Description is required.")
@@ -402,8 +382,7 @@ class RecordTab(ttk.Frame):
             return
         if not messagebox.askyesno("Confirm delete", "Delete this visit?"):
             return
-        d = self._parse_date()
-        month_key = d.strftime(DATE_FORMAT)[:7] if d else None
+        month_key = self._month_key()
         # The record's own date drives its month file, which may differ from
         # the date box if the user edited the box after selecting the row.
         record = self._find_record(self._current_record_id)
@@ -417,33 +396,25 @@ class RecordTab(ttk.Frame):
     # ------------------------------------------------------------------ #
     # Records list
     # ------------------------------------------------------------------ #
-    def _month_key(self) -> str | None:
-        d = self._parse_date()
-        return d.strftime(DATE_FORMAT)[:7] if d else None
+    def _month_key(self) -> str:
+        return self._selected_date().strftime(DATE_FORMAT)[:7]
 
     def _find_record(self, record_id: str) -> VisitRecord | None:
         month_key = self._month_key()
-        if not month_key:
-            return None
         return next((r for r in self.storage.list_records(month_key)
                      if r.id == record_id), None)
 
     def reload_records(self) -> None:
         self.tree.delete(*self.tree.get_children())
         month_key = self._month_key()
-        if not month_key:
-            self.day_total_var.set("0.00")
-            self.month_total_var.set("0.00")
-            return
-
-        selected_date = self.date_var.get().strip()
+        selected_date = self._selected_date().strftime(DATE_FORMAT)
         day_total = 0.0
         month_miles = 0.0
         records = self.storage.list_records(month_key)
         for r in records:
             self.tree.insert(
                 "", "end", iid=r.id,
-                values=(r.date, r.description, r.school,
+                values=(format_display_date(r.date), r.description, r.school,
                         f"{r.start_time}-{r.end_time}", f"{r.hours:g}",
                         f"{r.rate:.2f}", f"{r.mileage:g}", f"{r.amount:.2f}"),
             )
@@ -463,5 +434,6 @@ class RecordTab(ttk.Frame):
             return
         self._current_record_id = record.id
         # Sync the date box to the record so edits save to the right month.
-        self.date_var.set(record.date)
+        self.date_picker.set_date(date.fromisoformat(record.date),
+                                  notify=False)
         self._fill_form(record)
