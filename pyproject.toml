@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timetracker"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Desktop time tracker for recording billable client visits and monthly billing totals."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -25,6 +25,10 @@ build = [
 
 [project.gui-scripts]
 timetracker = "timetracker.__main__:main"
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version is timetracker/__init__.py.
+version = { attr = "timetracker.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["timetracker*"]

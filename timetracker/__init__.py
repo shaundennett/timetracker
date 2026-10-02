@@ -11,4 +11,4 @@ reporting views). Keep new features behind the storage/model boundaries so the
 UI stays thin.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

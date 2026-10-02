@@ -11,6 +11,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from ..storage import Storage
+from .about_dialog import AboutDialog
 from .business_dialog import BusinessDialog
 from .clients_dialog import ClientsDialog
 from .invoice_dialog import InvoiceDialog
@@ -57,6 +58,11 @@ class App(tk.Tk):
                                  command=self.open_tax_year_dialog)
         menubar.add_cascade(label="Invoice", menu=invoice_menu)
 
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="About Time Tracker",
+                              command=self.open_about_dialog)
+        menubar.add_cascade(label="Help", menu=help_menu)
+
         self.config(menu=menubar)
 
     def open_events_dialog(self) -> None:
@@ -73,6 +79,9 @@ class App(tk.Tk):
 
     def open_tax_year_dialog(self) -> None:
         TaxYearDialog(self, self.storage)
+
+    def open_about_dialog(self) -> None:
+        AboutDialog(self)
 
 
 def run() -> None:

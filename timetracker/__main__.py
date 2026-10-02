@@ -60,6 +60,7 @@ def ensure_runtime_dependencies() -> None:
 def main() -> None:
     # Imported here so a frozen build resolves them as part of the package.
     ensure_runtime_dependencies()
+    from . import __version__
     from .storage import Storage
     from .ui.app import App
 
@@ -67,6 +68,8 @@ def main() -> None:
                                      description="Record billable client visits.")
     parser.add_argument("--data-dir", default=None,
                         help="Directory for JSON data files.")
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s {__version__}")
     args = parser.parse_args()
 
     App(storage=Storage(args.data_dir or default_data_dir())).mainloop()
