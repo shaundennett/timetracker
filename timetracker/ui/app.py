@@ -75,7 +75,7 @@ class App(tk.Tk):
 
     def open_invoice_dialog(self) -> None:
         InvoiceDialog(self, self.storage,
-                      default_month=self.record_tab.current_month())
+                      default_date=self.record_tab.current_date())
 
     def open_tax_year_dialog(self) -> None:
         TaxYearDialog(self, self.storage)

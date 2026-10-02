@@ -3,13 +3,14 @@
 Pick a date, choose one of your regular client events, tweak the pre-filled
 billing fields if the actual visit differed, and save it as a VisitRecord for
 that date. The lower half lists everything already recorded in the selected
-month with per-day and month totals — the numbers that feed an invoice.
+month (or Monday-Sunday week, via the View toggle) with per-day and period
+totals — the numbers that feed an invoice.
 
     ┌ Date [19/07/2026] [Today] [◀] [▶]   Event [ combo ] [Load] ┐
     │ Description / School / Times / Hours / Rate / Notes  form   │
     │ [New] [Save] [Delete]                    Amount: 90.00      │
     ├────────────────────────────────────────────────────────────┤
-    │ Treeview of this month's records                            │
+    │ Treeview of this month's (or week's) records                │
     │ Day total: 90.00        Month total: 1,240.00              │
     └────────────────────────────────────────────────────────────┘
 """
@@ -25,10 +26,14 @@ from ..models import (
     WEEKDAYS,
     Client,
     VisitRecord,
+    PERIOD_MONTH,
+    PERIOD_WEEK,
+    Settings,
     compute_hours,
     format_display_date,
     normalize_time,
 )
+from ..periods import Period, period_for
 from .date_picker import DatePicker
 from .time_picker import TimePicker
 from ..storage import Storage
@@ -40,6 +45,9 @@ class RecordTab(ttk.Frame):
                  on_business=None, on_invoice=None, on_tax_year=None):
         super().__init__(parent, padding=14)
         self.storage = storage
+        # Month or week view; saved so it is remembered between runs.
+        self.period_kind = tk.StringVar(
+            value=storage.load_settings().period_kind)
         # Callbacks that open the various dialogs; wired up by the App.
         self.on_manage_events = on_manage_events or (lambda: None)
         self.on_business = on_business or (lambda: None)
@@ -56,9 +64,9 @@ class RecordTab(ttk.Frame):
         self.refresh_clients()
         self.reload_records()
 
-    def current_month(self) -> str | None:
-        """The 'YYYY-MM' currently in view — used to seed the invoice dialog."""
-        return self._month_key()
+    def current_date(self) -> date:
+        """The date in the date box — used to seed the invoice dialog."""
+        return self._selected_date()
 
     # ------------------------------------------------------------------ #
     # Layout
@@ -76,6 +84,14 @@ class RecordTab(ttk.Frame):
         ttk.Button(bar, text="Business details…",
                    command=lambda: self.on_business()).pack(
             side="right", padx=(0, 8))
+        view = ttk.Frame(bar)
+        view.pack(side="right", padx=(0, 20))
+        ttk.Label(view, text="View:").pack(side="left", padx=(0, 6))
+        for text, value in (("Month", PERIOD_MONTH), ("Week", PERIOD_WEEK)):
+            ttk.Radiobutton(view, text=text, value=value,
+                            variable=self.period_kind,
+                            command=self._on_view_change).pack(side="left",
+                                                               padx=2)
         ttk.Separator(self, orient="horizontal").pack(fill="x", pady=(0, 10))
 
     def _build_top(self) -> None:
@@ -185,8 +201,8 @@ class RecordTab(ttk.Frame):
             row=row, column=col + 1, sticky="w", padx=6, pady=3)
 
     def _build_records(self) -> None:
-        wrap = ttk.LabelFrame(self, text="Recorded visits (this month)",
-                              padding=8)
+        wrap = self.records_frame = ttk.LabelFrame(
+            self, text="Recorded visits", padding=8)
         wrap.pack(fill="both", expand=True)
 
         columns = ("date", "description", "school", "time", "hours",
@@ -218,13 +234,16 @@ class RecordTab(ttk.Frame):
         self.day_total_var = tk.StringVar(value="0.00")
         self.month_total_var = tk.StringVar(value="0.00")
         self.month_miles_var = tk.StringVar(value="0")
+        # The "Month ..." captions become "Week ..." in week view.
+        self.total_caption = tk.StringVar(value="Month total:")
+        self.miles_caption = tk.StringVar(value="Month miles:")
         ttk.Label(totals, text="Day total:").pack(side="left")
         ttk.Label(totals, textvariable=self.day_total_var,
                   font=("", 10, "bold")).pack(side="left", padx=(4, 20))
-        ttk.Label(totals, text="Month total:").pack(side="left")
+        ttk.Label(totals, textvariable=self.total_caption).pack(side="left")
         ttk.Label(totals, textvariable=self.month_total_var,
                   font=("", 10, "bold")).pack(side="left", padx=(4, 20))
-        ttk.Label(totals, text="Month miles:").pack(side="left")
+        ttk.Label(totals, textvariable=self.miles_caption).pack(side="left")
         ttk.Label(totals, textvariable=self.month_miles_var,
                   font=("", 10, "bold")).pack(side="left", padx=(4, 0))
 
@@ -243,6 +262,15 @@ class RecordTab(ttk.Frame):
 
     def _on_date_change(self) -> None:
         self.refresh_clients()
+        self.reload_records()
+
+    def _period(self) -> Period:
+        """The month or week (per the View toggle) around the date box."""
+        return period_for(self.period_kind.get(), self._selected_date())
+
+    def _on_view_change(self) -> None:
+        self.storage.save_settings(
+            Settings(period_kind=self.period_kind.get()))
         self.reload_records()
 
     # ------------------------------------------------------------------ #
@@ -383,7 +411,7 @@ class RecordTab(ttk.Frame):
         self.storage.save_record(record)
         self._current_record_id = record.id
         self.reload_records()
-        # Reselect the saved record if it's in the currently shown month.
+        # Reselect the saved record if it's in the currently shown period.
         if self.tree.exists(record.id):
             self.tree.selection_set(record.id)
 
@@ -412,17 +440,22 @@ class RecordTab(ttk.Frame):
         return self._selected_date().strftime(DATE_FORMAT)[:7]
 
     def _find_record(self, record_id: str) -> VisitRecord | None:
-        month_key = self._month_key()
-        return next((r for r in self.storage.list_records(month_key)
-                     if r.id == record_id), None)
+        period = self._period()
+        return next((r for r in self.storage.list_records_between(
+            period.start, period.end) if r.id == record_id), None)
 
     def reload_records(self) -> None:
         self.tree.delete(*self.tree.get_children())
-        month_key = self._month_key()
+        period = self._period()
+        noun = period.kind.capitalize()  # "Month" or "Week"
+        self.records_frame.configure(text=f"Recorded visits — {period.label}")
+        self.total_caption.set(f"{noun} total:")
+        self.miles_caption.set(f"{noun} miles:")
         selected_date = self._selected_date().strftime(DATE_FORMAT)
         day_total = 0.0
+        period_total = 0.0
         month_miles = 0.0
-        records = self.storage.list_records(month_key)
+        records = self.storage.list_records_between(period.start, period.end)
         for r in records:
             self.tree.insert(
                 "", "end", iid=r.id,
@@ -432,9 +465,10 @@ class RecordTab(ttk.Frame):
             )
             if r.date == selected_date:
                 day_total += r.amount
+            period_total += r.amount
             month_miles += r.mileage
         self.day_total_var.set(f"{day_total:.2f}")
-        self.month_total_var.set(f"{self.storage.month_total(month_key):.2f}")
+        self.month_total_var.set(f"{round(period_total, 2):.2f}")
         self.month_miles_var.set(f"{round(month_miles, 2):g}")
 
     def _on_record_select(self, _event=None) -> None:
