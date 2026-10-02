@@ -121,18 +121,8 @@ _RULE = (222, 226, 230)
 _ZEBRA = (247, 249, 252)
 
 
-def render_pdf(inv: Invoice, path: str) -> str:
-    """Write a formatted PDF invoice to ``path`` and return the path."""
-    from fpdf import FPDF  # imported lazily so the app runs without it
-
-    pdf = FPDF(format="A4", unit="mm")
-    pdf.set_auto_page_break(auto=True, margin=18)
-    pdf.add_page()
-    pdf.set_margins(18, 16, 18)
-    b = inv.business
-    epw = pdf.epw  # effective page width
-
-    # ---- Masthead --------------------------------------------------- #
+def _draw_masthead(pdf, b: BusinessProfile, epw: float) -> None:
+    """Sender details on the left, the INVOICE title on the right."""
     pdf.set_text_color(*_INK)
     pdf.set_font("Helvetica", "B", 20)
     pdf.cell(0, 10, b.business_name or b.full_name or "Invoice",
@@ -154,11 +144,30 @@ def render_pdf(inv: Invoice, path: str) -> str:
         pdf.cell(0, 5, f"UTR: {b.utr}",
                  new_x="LMARGIN", new_y="NEXT")
 
-    # "INVOICE" title on the right of the masthead.
-    pdf.set_xy(pdf.l_margin, 16)
+    # "INVOICE" title on the right of the masthead. Drawing it moves the
+    # cursor back up to the top margin, so remember where the sender block
+    # ended and continue below whichever of the two is taller; otherwise the
+    # content that follows is drawn over the sender's address lines.
+    text_bottom = pdf.get_y()
+    pdf.set_xy(pdf.l_margin, pdf.t_margin)
     pdf.set_font("Helvetica", "B", 26)
     pdf.set_text_color(*_ACCENT)
     pdf.cell(epw, 12, "INVOICE", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_y(max(text_bottom, pdf.get_y()))
+
+
+def render_pdf(inv: Invoice, path: str) -> str:
+    """Write a formatted PDF invoice to ``path`` and return the path."""
+    from fpdf import FPDF  # imported lazily so the app runs without it
+
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    pdf.set_margins(18, 16, 18)
+    b = inv.business
+    epw = pdf.epw  # effective page width
+
+    _draw_masthead(pdf, b, epw)
 
     pdf.ln(4)
     _rule(pdf)
