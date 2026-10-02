@@ -8,8 +8,10 @@ from timetracker.invoice import (
     render_text,
     schools_in,
     suggest_number,
+    suggest_number_for_period,
 )
 from timetracker.models import BusinessProfile, VisitRecord
+from timetracker.periods import month_of, week_of
 from timetracker.storage import Storage
 
 
@@ -95,3 +97,51 @@ def test_text_preview_shows_dd_mm_yyyy():
     assert "31/07/2026" in text
     assert "07/07/2026" in text
     assert "2026-07-31" not in text
+
+
+def test_suggest_number_for_period():
+    from datetime import date
+    assert suggest_number_for_period(month_of(date(2026, 7, 8))) == "INV-202607"
+    assert suggest_number_for_period(week_of(date(2026, 7, 8))) == "INV-2026W28"
+    # The week containing 1 Jan 2027 is ISO week 53 of 2026.
+    assert suggest_number_for_period(week_of(date(2027, 1, 1))) == "INV-2026W53"
+
+
+def test_period_line_shown_when_set_and_omitted_when_empty(tmp_path):
+    inv = _invoice()
+    assert "Period" not in render_text(inv)
+    inv.period = "Week commencing 06/07/2026"
+    assert "Period         : Week commencing 06/07/2026" in render_text(inv)
+    out = tmp_path / "weekly.pdf"
+    render_pdf(inv, str(out))  # must not raise on the extra line
+    assert out.read_bytes().startswith(b"%PDF")
+
+
+def test_pdf_masthead_leaves_cursor_below_a_long_address():
+    # Regression: content after the masthead was drawn over the address lines
+    # because the cursor was left next to the INVOICE title near the top.
+    from fpdf import FPDF
+    from timetracker.invoice import _draw_masthead
+
+    biz = BusinessProfile(
+        full_name="Pat Example", business_name="Example Tuition",
+        address="1 Fake Street\nFake Town\nFakeshire\nFK1 2AB",
+        telephone="01234 567890", email="pat@example.invalid", utr="1234567890")
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.add_page()
+    pdf.set_margins(18, 16, 18)
+    _draw_masthead(pdf, biz, pdf.epw)
+    # name (10) + full name, 4 address lines, contact, UTR (7 lines x 5).
+    assert pdf.get_y() >= 16 + 10 + 7 * 5
+    assert pdf.get_x() == pdf.l_margin
+
+
+def test_pdf_masthead_with_no_address_still_clears_the_title():
+    from fpdf import FPDF
+    from timetracker.invoice import _draw_masthead
+
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.add_page()
+    pdf.set_margins(18, 16, 18)
+    _draw_masthead(pdf, BusinessProfile(), pdf.epw)
+    assert pdf.get_y() >= 16 + 12  # below the 12mm INVOICE title

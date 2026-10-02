@@ -23,6 +23,7 @@ No database, no server — just a tkinter GUI over plain JSON files.
 timetracker/
   models.py        Client and VisitRecord dataclasses + time/amount helpers
   storage.py       JSON persistence (clients.json + time_YYYY-MM.json per month)
+  periods.py       month / Monday-Sunday week date arithmetic
   invoice.py       build/render invoices (text preview + PDF via fpdf2)
   tax_report.py    UK tax year summaries (payments + mileage by month)
   ui/
@@ -77,6 +78,9 @@ timetracker
 4. The lower list shows every recorded visit for that month, with **day** and
    **month** totals plus **month miles**. Click a row to **edit** it, or select
    it and **Delete**.
+5. Use the **View: Month / Week** toggle (top right) to list a Monday-to-Sunday
+   week instead of a month. The heading and totals switch to *week commencing
+   dd/mm/yyyy*, and your choice is remembered (`settings.json`).
 
 **Mileage** is optional on each visit (0 by default) and pre-fills from the
 event's default. It is *not* shown on invoices — it's tracked separately (with a
@@ -87,8 +91,11 @@ monthly total) for mileage-based tax calculations.
 1. Enter your details once via **Events ▸ Business details…** — full name,
    business name, UTR, telephone, email, and address. These form the
    "From" block on every invoice.
-2. Click **Create invoice…** (toolbar or *Invoice* menu). Choose the **year and
-   month**, and optionally narrow to a single school; the line items pre-fill.
+2. Click **Create invoice…** (toolbar or *Invoice* menu). Under **Bill by**,
+   choose **Month** (pick the year and month) or **Week** (step through weeks
+   with ◀ ▶; numbers look like `INV-2026W28`), and optionally narrow to a
+   single school; the line items pre-fill. The invoice shows the period it
+   covers. The Month/Week choice is the same setting as the entry screen's.
 3. Adjust the invoice number, date, and notes — the preview updates live.
 4. **Save as PDF…** writes a formatted PDF anywhere you choose; **Print** sends
    it to your default printer (via the system PDF handler).
@@ -109,6 +116,7 @@ month file.
 ## Data files
 
 - `clients.json` — all client definitions.
+- `settings.json` — preferences (currently the Month/Week view).
 - `time_YYYY-MM.json` — one file per month of visit records, keeping each
   billing period self-contained.
 

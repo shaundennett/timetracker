@@ -34,6 +34,11 @@ WEEKDAYS = [
     "Sunday",
 ]
 
+# How visits are shown and invoiced: by calendar month or by Monday-Sunday week.
+PERIOD_MONTH = "month"
+PERIOD_WEEK = "week"
+PERIOD_KINDS = (PERIOD_MONTH, PERIOD_WEEK)
+
 TIME_FORMAT = "%H:%M"
 DATE_FORMAT = "%Y-%m-%d"  # Stored form: ISO text sorts in date order.
 DISPLAY_DATE_FORMAT = "%d/%m/%Y"  # Shown to the user (UK order).
@@ -161,6 +166,24 @@ class BusinessProfile:
             data = {**data, "utr": data["vat_reference"]}
         known = {f: data[f] for f in cls.__dataclass_fields__ if f in data}
         return cls(**known)
+
+
+@dataclass
+class Settings:
+    """User preferences, stored once in ``settings.json``."""
+
+    period_kind: str = PERIOD_MONTH
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Settings":
+        known = {f: data[f] for f in cls.__dataclass_fields__ if f in data}
+        settings = cls(**known)
+        if settings.period_kind not in PERIOD_KINDS:
+            settings.period_kind = PERIOD_MONTH  # tolerate a bad/old value
+        return settings
 
 
 @dataclass

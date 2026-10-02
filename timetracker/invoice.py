@@ -19,7 +19,8 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import List
 
-from .models import BusinessProfile, VisitRecord, format_display_date
+from .models import PERIOD_WEEK, BusinessProfile, VisitRecord, format_display_date
+from .periods import Period
 
 # GBP by default — VAT + "school" strongly imply a UK sole trader, and the
 # symbol is latin-1 safe for fpdf2's core fonts.
@@ -34,6 +35,7 @@ class Invoice:
     items: List[VisitRecord] = field(default_factory=list)
     notes: str = ""
     currency: str = CURRENCY
+    period: str = ""  # e.g. "July 2026"; shown on the invoice when set
 
     # ---- money -------------------------------------------------------- #
     @property
@@ -60,6 +62,17 @@ def suggest_number(month_key: str) -> str:
     """A sensible default invoice number for a month, e.g. INV-202607."""
     return f"INV-{month_key.replace('-', '')}"
 
+
+def suggest_number_for_period(period: Period) -> str:
+    """Default invoice number: INV-202607 for a month, INV-2026W28 for a week.
+
+    Weeks use the ISO year and week number, so the week around New Year gets a
+    number that matches the week rather than the calendar year of its Monday.
+    """
+    if period.kind == PERIOD_WEEK:
+        year, week = period.iso_week
+        return f"INV-{year}W{week:02d}"
+    return suggest_number(f"{period.start.year:04d}-{period.start.month:02d}")
 
 # ---------------------------------------------------------------------- #
 # Text rendering (on-screen preview)
@@ -88,6 +101,8 @@ def render_text(inv: Invoice, width: int = 74) -> str:
 
     lines.append(f"Invoice number : {inv.number}")
     lines.append(f"Invoice date   : {format_display_date(inv.date)}")
+    if inv.period:
+        lines.append(f"Period         : {inv.period}")
     lines.append("-" * width)
 
     # Line-item table.
@@ -121,18 +136,8 @@ _RULE = (222, 226, 230)
 _ZEBRA = (247, 249, 252)
 
 
-def render_pdf(inv: Invoice, path: str) -> str:
-    """Write a formatted PDF invoice to ``path`` and return the path."""
-    from fpdf import FPDF  # imported lazily so the app runs without it
-
-    pdf = FPDF(format="A4", unit="mm")
-    pdf.set_auto_page_break(auto=True, margin=18)
-    pdf.add_page()
-    pdf.set_margins(18, 16, 18)
-    b = inv.business
-    epw = pdf.epw  # effective page width
-
-    # ---- Masthead --------------------------------------------------- #
+def _draw_masthead(pdf, b: BusinessProfile, epw: float) -> None:
+    """Sender details on the left, the INVOICE title on the right."""
     pdf.set_text_color(*_INK)
     pdf.set_font("Helvetica", "B", 20)
     pdf.cell(0, 10, b.business_name or b.full_name or "Invoice",
@@ -154,11 +159,30 @@ def render_pdf(inv: Invoice, path: str) -> str:
         pdf.cell(0, 5, f"UTR: {b.utr}",
                  new_x="LMARGIN", new_y="NEXT")
 
-    # "INVOICE" title on the right of the masthead.
-    pdf.set_xy(pdf.l_margin, 16)
+    # "INVOICE" title on the right of the masthead. Drawing it moves the
+    # cursor back up to the top margin, so remember where the sender block
+    # ended and continue below whichever of the two is taller; otherwise the
+    # content that follows is drawn over the sender's address lines.
+    text_bottom = pdf.get_y()
+    pdf.set_xy(pdf.l_margin, pdf.t_margin)
     pdf.set_font("Helvetica", "B", 26)
     pdf.set_text_color(*_ACCENT)
     pdf.cell(epw, 12, "INVOICE", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_y(max(text_bottom, pdf.get_y()))
+
+
+def render_pdf(inv: Invoice, path: str) -> str:
+    """Write a formatted PDF invoice to ``path`` and return the path."""
+    from fpdf import FPDF  # imported lazily so the app runs without it
+
+    pdf = FPDF(format="A4", unit="mm")
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.add_page()
+    pdf.set_margins(18, 16, 18)
+    b = inv.business
+    epw = pdf.epw  # effective page width
+
+    _draw_masthead(pdf, b, epw)
 
     pdf.ln(4)
     _rule(pdf)
@@ -167,8 +191,11 @@ def render_pdf(inv: Invoice, path: str) -> str:
     # ---- Invoice meta (number + date) ------------------------------- #
     col = epw / 2
     pdf.set_font("Helvetica", "", 10)
-    for label, value in (("Invoice No", inv.number),
-                         ("Date", format_display_date(inv.date))):
+    meta = [("Invoice No", inv.number),
+            ("Date", format_display_date(inv.date))]
+    if inv.period:
+        meta.append(("Period", inv.period))
+    for label, value in meta:
         pdf.set_x(pdf.l_margin + col)
         pdf.set_text_color(*_MUTED)
         pdf.cell(col * 0.45, 6, label)

@@ -98,3 +98,48 @@ def test_old_unpadded_times_sort_correctly(store):
     path.write_text(json.dumps(rows), encoding="utf-8")
     assert [r.start_time for r in store.list_records("2026-07")] == [
         "09:00", "10:00"]
+
+
+def _visit(day, start="09:00"):
+    return VisitRecord(client_id="c", date=day, description=day,
+                       start_time=start, end_time="23:00", hours=1.0, rate=10)
+
+
+def test_list_records_between_spans_two_months(store):
+    from datetime import date
+    for d in ("2026-06-28", "2026-06-29", "2026-07-05", "2026-07-06"):
+        store.save_record(_visit(d))
+    got = [r.date for r in store.list_records_between(date(2026, 6, 29),
+                                                      date(2026, 7, 5))]
+    assert got == ["2026-06-29", "2026-07-05"]  # both ends inclusive
+
+
+def test_list_records_between_spans_a_year_end_and_sorts(store):
+    from datetime import date
+    store.save_record(_visit("2027-01-03", "10:00"))
+    store.save_record(_visit("2026-12-28"))
+    store.save_record(_visit("2027-01-03", "09:00"))
+    got = store.list_records_between(date(2026, 12, 28), date(2027, 1, 3))
+    assert [(r.date, r.start_time) for r in got] == [
+        ("2026-12-28", "09:00"), ("2027-01-03", "09:00"),
+        ("2027-01-03", "10:00")]
+
+
+def test_list_records_between_empty(store):
+    from datetime import date
+    assert store.list_records_between(date(2026, 7, 6),
+                                      date(2026, 7, 12)) == []
+
+
+def test_settings_default_round_trip_and_bad_values(store):
+    from timetracker.models import Settings
+    assert store.load_settings().period_kind == "month"
+    store.save_settings(Settings(period_kind="week"))
+    assert store.load_settings().period_kind == "week"
+    store.settings_file.write_text('{"period_kind": "fortnight"}',
+                                   encoding="utf-8")
+    assert store.load_settings().period_kind == "month"
+    store.settings_file.write_text("not json", encoding="utf-8")
+    assert store.load_settings().period_kind == "month"
+    store.settings_file.write_text("[1, 2]", encoding="utf-8")
+    assert store.load_settings().period_kind == "month"
