@@ -10,8 +10,9 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ..models import WEEKDAYS, Client, compute_hours, parse_time
+from ..models import WEEKDAYS, Client, compute_hours, normalize_time
 from ..storage import Storage
+from .time_picker import TimePicker
 
 
 class ClientsTab(ttk.Frame):
@@ -88,14 +89,11 @@ class ClientsTab(ttk.Frame):
             row=row, column=1, sticky="w", pady=3)
         row += 1
 
-        self._add_entry(right, "Start time (HH:MM)", "start_time", row); row += 1
-        self._add_entry(right, "End time (HH:MM)", "end_time", row); row += 1
-
-        # Recompute hours from the times as a convenience.
-        ttk.Button(right, text="Calc hours from times",
-                   command=self._calc_hours).grid(row=row, column=1,
-                                                  sticky="w", pady=(0, 3))
-        row += 1
+        self._add_time(right, "Start time (24h)", "start_time", row); row += 1
+        self._add_time(right, "End time (24h)", "end_time", row); row += 1
+        # Changing a time recalculates Hours (which can still be overtyped).
+        for key in ("start_time", "end_time"):
+            self.vars[key].trace_add("write", lambda *_: self._auto_hours())
 
         self._add_entry(right, "Hours", "hours", row); row += 1
         self._add_entry(right, "Rate (per hour)", "rate", row); row += 1
@@ -114,6 +112,12 @@ class ClientsTab(ttk.Frame):
         ttk.Label(parent, text=label).grid(row=row, column=0,
                                            sticky="w", pady=3)
         ttk.Entry(parent, textvariable=self.vars[key], width=24).grid(
+            row=row, column=1, sticky="w", pady=3)
+
+    def _add_time(self, parent, label, key, row) -> None:
+        ttk.Label(parent, text=label).grid(row=row, column=0,
+                                           sticky="w", pady=3)
+        TimePicker(parent, self.vars[key]).grid(
             row=row, column=1, sticky="w", pady=3)
 
     # ------------------------------------------------------------------ #
@@ -164,14 +168,15 @@ class ClientsTab(ttk.Frame):
         self.vars["rate"].set("0.00")
         self.vars["mileage"].set("0")
 
-    def _calc_hours(self) -> None:
+    def _auto_hours(self) -> None:
+        """Keep Hours in step with the times; it can still be overtyped."""
         try:
             hours = compute_hours(self.vars["start_time"].get(),
                                   self.vars["end_time"].get())
         except ValueError:
-            messagebox.showerror("Invalid time", "Use HH:MM (e.g. 09:30).")
             return
-        self.vars["hours"].set(f"{hours:g}")
+        if hours > 0:
+            self.vars["hours"].set(f"{hours:g}")
 
     def _validate(self) -> Client | None:
         description = self.vars["description"].get().strip()
@@ -179,10 +184,15 @@ class ClientsTab(ttk.Frame):
             messagebox.showerror("Missing data", "Description is required.")
             return None
         try:
-            parse_time(self.vars["start_time"].get())
-            parse_time(self.vars["end_time"].get())
+            start = normalize_time(self.vars["start_time"].get())
+            end = normalize_time(self.vars["end_time"].get())
         except ValueError:
-            messagebox.showerror("Invalid time", "Times must be HH:MM.")
+            messagebox.showerror("Invalid time",
+                                 "Times must be 24-hour HH:MM.")
+            return None
+        if compute_hours(start, end) <= 0:
+            messagebox.showerror("Invalid time",
+                                 "End time must be after start time.")
             return None
         try:
             hours = float(self.vars["hours"].get())
@@ -197,8 +207,8 @@ class ClientsTab(ttk.Frame):
             description=description,
             school=self.vars["school"].get().strip(),
             regular_day=self.vars["regular_day"].get(),
-            start_time=self.vars["start_time"].get().strip(),
-            end_time=self.vars["end_time"].get().strip(),
+            start_time=start,
+            end_time=end,
             hours=hours,
             rate=rate,
             mileage=mileage,

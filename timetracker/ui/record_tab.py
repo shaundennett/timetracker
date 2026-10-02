@@ -27,9 +27,10 @@ from ..models import (
     VisitRecord,
     compute_hours,
     format_display_date,
-    parse_time,
+    normalize_time,
 )
 from .date_picker import DatePicker
+from .time_picker import TimePicker
 from ..storage import Storage
 from .style import ACCENT, BORDER, INK, SURFACE
 
@@ -127,20 +128,18 @@ class RecordTab(ttk.Frame):
         # Live amount preview recomputes as hours/rate change.
         for key in ("hours", "rate"):
             self.vars[key].trace_add("write", lambda *_: self._update_amount())
+        # Changing a time recalculates Hours.
+        for key in ("start_time", "end_time"):
+            self.vars[key].trace_add("write", lambda *_: self._auto_hours())
 
         # Two fields per row keeps the section short.
         self._add_entry(form, "Description", "description", 0, 0, width=22)
         self._add_entry(form, "School", "school", 0, 2, width=24)
-        self._add_entry(form, "Start (HH:MM)", "start_time", 1, 0, width=12)
-        self._add_entry(form, "End (HH:MM)", "end_time", 1, 2, width=12)
+        self._add_time(form, "Start (24h)", "start_time", 1, 0)
+        self._add_time(form, "End (24h)", "end_time", 1, 2)
         self._add_entry(form, "Hours", "hours", 2, 0, width=12)
         self._add_entry(form, "Rate (/hr)", "rate", 2, 2, width=12)
         self._add_entry(form, "Mileage", "mileage", 3, 0, width=12)
-
-        ttk.Button(form, text="Calc hours from times",
-                   command=self._calc_hours).grid(row=3, column=2,
-                                                  columnspan=2, sticky="w",
-                                                  padx=6, pady=(0, 4))
 
         # Compact multi-line notes field.
         ttk.Label(form, text="Notes").grid(row=4, column=0, sticky="nw",
@@ -177,6 +176,13 @@ class RecordTab(ttk.Frame):
                           **({"width": width} if width else {}))
         entry.grid(row=row, column=col + 1, columnspan=colspan,
                    sticky="w" if width else "ew", padx=6, pady=3)
+
+    def _add_time(self, parent, label, key, row, col) -> None:
+        pad_left = 16 if col else 0
+        ttk.Label(parent, text=label).grid(row=row, column=col, sticky="w",
+                                           padx=(pad_left, 8), pady=3)
+        TimePicker(parent, self.vars[key]).grid(
+            row=row, column=col + 1, sticky="w", padx=6, pady=3)
 
     def _build_records(self) -> None:
         wrap = ttk.LabelFrame(self, text="Recorded visits (this month)",
@@ -305,14 +311,15 @@ class RecordTab(ttk.Frame):
         self.notes_text.delete("1.0", "end")
         self._update_amount()
 
-    def _calc_hours(self) -> None:
+    def _auto_hours(self) -> None:
+        """Keep Hours in step with the times; it can still be overtyped."""
         try:
             hours = compute_hours(self.vars["start_time"].get(),
                                   self.vars["end_time"].get())
         except ValueError:
-            messagebox.showerror("Invalid time", "Use HH:MM (e.g. 09:30).")
             return
-        self.vars["hours"].set(f"{hours:g}")
+        if hours > 0:
+            self.vars["hours"].set(f"{hours:g}")
 
     def _update_amount(self) -> None:
         try:
@@ -330,10 +337,15 @@ class RecordTab(ttk.Frame):
             messagebox.showerror("Missing data", "Description is required.")
             return None
         try:
-            parse_time(self.vars["start_time"].get())
-            parse_time(self.vars["end_time"].get())
+            start = normalize_time(self.vars["start_time"].get())
+            end = normalize_time(self.vars["end_time"].get())
         except ValueError:
-            messagebox.showerror("Invalid time", "Times must be HH:MM.")
+            messagebox.showerror("Invalid time",
+                                 "Times must be 24-hour HH:MM.")
+            return None
+        if compute_hours(start, end) <= 0:
+            messagebox.showerror("Invalid time",
+                                 "End time must be after start time.")
             return None
         try:
             hours = float(self.vars["hours"].get())
@@ -350,8 +362,8 @@ class RecordTab(ttk.Frame):
             date=d.strftime(DATE_FORMAT),
             description=description,
             school=self.vars["school"].get().strip(),
-            start_time=self.vars["start_time"].get().strip(),
-            end_time=self.vars["end_time"].get().strip(),
+            start_time=start,
+            end_time=end,
             hours=hours,
             rate=rate,
             mileage=mileage,

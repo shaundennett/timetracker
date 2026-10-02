@@ -7,6 +7,7 @@ from timetracker.models import (
     VisitRecord,
     compute_hours,
     format_display_date,
+    normalize_time,
     parse_display_date,
     parse_time,
 )
@@ -102,3 +103,28 @@ def test_display_dates_sort_wrongly_but_iso_sorts_correctly():
     shown = [format_display_date(d) for d in iso]
     assert sorted(iso) == ["2026-12-20", "2027-01-15"]
     assert sorted(shown) == ["15/01/2027", "20/12/2026"]
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("09:00", "09:00"), ("9:05", "09:05"), ("9:5", "09:05"),
+    (" 23:59 ", "23:59"), ("00:00", "00:00"),
+])
+def test_normalize_time_pads_to_24_hour(raw, expected):
+    assert normalize_time(raw) == expected
+
+
+@pytest.mark.parametrize("bad", ["", "24:00", "09:60", "9.30", "0900",
+                                 "09:00pm", "9pm", "09:00:00"])
+def test_normalize_time_rejects_non_24_hour_input(bad):
+    with pytest.raises(ValueError):
+        normalize_time(bad)
+
+
+def test_records_and_clients_normalise_old_unpadded_times():
+    rec = VisitRecord.from_dict({"client_id": "c", "date": "2026-07-01",
+                                 "start_time": "9:00", "end_time": "9:5"})
+    assert (rec.start_time, rec.end_time) == ("09:00", "09:05")
+    client = Client.from_dict({"description": "x", "start_time": "8:30",
+                               "end_time": "garbage"})
+    assert client.start_time == "08:30"
+    assert client.end_time == "garbage"  # unparseable values are left alone

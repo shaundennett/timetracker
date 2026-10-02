@@ -87,3 +87,14 @@ def test_corrupt_file_falls_back(store, tmp_path):
     (tmp_path / "clients.json").write_text("{ not json", encoding="utf-8")
     # Should not raise; returns empty rather than crashing the UI.
     assert store.list_clients() == []
+
+
+def test_old_unpadded_times_sort_correctly(store):
+    import json
+    path = store.data_dir / "time_2026-07.json"
+    rows = [{"client_id": "c", "date": "2026-07-01", "start_time": t,
+             "end_time": "23:00", "id": f"id{i}"}
+            for i, t in enumerate(["10:00", "9:00"])]
+    path.write_text(json.dumps(rows), encoding="utf-8")
+    assert [r.start_time for r in store.list_records("2026-07")] == [
+        "09:00", "10:00"]
