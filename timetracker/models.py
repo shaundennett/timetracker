@@ -67,6 +67,30 @@ def parse_display_date(value: str) -> date:
     return datetime.strptime(value.strip(), DISPLAY_DATE_FORMAT).date()
 
 
+def normalize_time(value: str) -> str:
+    """Return a 24-hour, zero-padded 'HH:MM' string (e.g. '9:5' -> '09:05').
+
+    Raises ValueError for anything that is not a valid 24-hour time.
+    """
+    return parse_time(value).strftime(TIME_FORMAT)
+
+
+def _normalize_stored_times(data: dict) -> dict:
+    """Tidy start/end times read from disk; leave unparseable values alone.
+
+    Older files may hold unpadded times like '9:00', which would sort after
+    '10:00' as text.
+    """
+    fixed = dict(data)
+    for key in ("start_time", "end_time"):
+        if isinstance(fixed.get(key), str):
+            try:
+                fixed[key] = normalize_time(fixed[key])
+            except ValueError:
+                pass
+    return fixed
+
+
 def compute_hours(start: str, end: str) -> float:
     """Hours between two 'HH:MM' strings, rounded to 2dp.
 
@@ -106,6 +130,7 @@ class Client:
     @classmethod
     def from_dict(cls, data: dict) -> "Client":
         # Only pull known fields so older/newer files degrade gracefully.
+        data = _normalize_stored_times(data)
         known = {f: data[f] for f in cls.__dataclass_fields__ if f in data}
         return cls(**known)
 
@@ -168,6 +193,7 @@ class VisitRecord:
 
     @classmethod
     def from_dict(cls, data: dict) -> "VisitRecord":
+        data = _normalize_stored_times(data)
         known = {f: data[f] for f in cls.__dataclass_fields__ if f in data}
         return cls(**known)
 

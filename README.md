@@ -26,9 +26,11 @@ timetracker/
   invoice.py       build/render invoices (text preview + PDF via fpdf2)
   tax_report.py    UK tax year summaries (payments + mileage by month)
   ui/
-    app.py            main window (entry screen + Events/Invoice menus)
+    app.py            main window (entry screen + Events/Invoice/Help menus)
     record_tab.py     daily workflow: pick date -> pick event -> save visit
     date_picker.py    read-only DD/MM/YYYY box with calendar popup
+    time_picker.py    24-hour HH and MM boxes for start/end times
+    about_dialog.py   Help > About (version number)
     clients_dialog.py modal dialog wrapping the event management panel
     clients_tab.py    management panel for the reusable event definitions
     business_dialog.py edit your business/invoice details
@@ -67,6 +69,9 @@ timetracker
    box or 📅 to open the calendar picker, or use *Today* / ◀ / ▶ to move around.
    Dates are shown as DD/MM/YYYY and can't be typed, so they are always valid.
    Events matching that weekday are listed first.
+   Start and end times use 24-hour hour/minute boxes (00-23, 00-59); **Hours**
+   updates automatically when a time changes and can still be overtyped. The
+   end time must be after the start time.
 3. Pick an event — the form is **pre-filled automatically**. Adjust anything
    that differed on the day, add notes, and **Save visit**.
 4. The lower list shows every recorded visit for that month, with **day** and
