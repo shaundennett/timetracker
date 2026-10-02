@@ -1,9 +1,13 @@
+import datetime
+
 import pytest
 
 from timetracker.models import (
     Client,
     VisitRecord,
     compute_hours,
+    format_display_date,
+    parse_display_date,
     parse_time,
 )
 
@@ -68,3 +72,33 @@ def test_mileage_defaults_to_zero_and_survives_roundtrip():
     # Unknown/absent mileage in an older file degrades to the 0 default.
     restored = VisitRecord.from_dict({"client_id": "c", "date": "2026-07-01"})
     assert restored.mileage == 0.0
+
+
+def test_format_display_date():
+    assert format_display_date("2026-07-05") == "05/07/2026"
+
+
+def test_format_display_date_leaves_unexpected_text_alone():
+    assert format_display_date("") == ""
+    assert format_display_date("not a date") == "not a date"
+
+
+def test_parse_display_date_round_trip():
+    d = parse_display_date("29/02/2028")
+    assert d == datetime.date(2028, 2, 29)
+    assert format_display_date(d.isoformat()) == "29/02/2028"
+
+
+@pytest.mark.parametrize("bad", ["", "2026-07-05", "31/02/2026", "5/13/2026",
+                                 "05-07-2026", "29/02/2027"])
+def test_parse_display_date_rejects_bad_input(bad):
+    with pytest.raises(ValueError):
+        parse_display_date(bad)
+
+
+def test_display_dates_sort_wrongly_but_iso_sorts_correctly():
+    # Documents why dates are stored as ISO and only displayed as DD/MM/YYYY.
+    iso = ["2027-01-15", "2026-12-20"]
+    shown = [format_display_date(d) for d in iso]
+    assert sorted(iso) == ["2026-12-20", "2027-01-15"]
+    assert sorted(shown) == ["15/01/2027", "20/12/2026"]

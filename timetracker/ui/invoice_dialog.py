@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 from .. import invoice as inv_mod
 from ..models import VisitRecord
 from ..storage import Storage
+from .date_picker import DatePicker
 from .style import ACCENT, BORDER, INK, SURFACE
 
 _ALL_SCHOOLS = "All schools"
@@ -111,9 +112,9 @@ class InvoiceDialog(tk.Toplevel):
         r += 1
 
         ttk.Label(panel, text="Date").grid(row=r, column=0, sticky="w", pady=5)
-        self.date_var = tk.StringVar(value=_dt.date.today().strftime("%Y-%m-%d"))
-        ttk.Entry(panel, textvariable=self.date_var, width=18).grid(
-            row=r, column=1, sticky="w", pady=5)
+        self.date_picker = DatePicker(panel, width=14,
+                                      on_change=self._render_preview)
+        self.date_picker.grid(row=r, column=1, sticky="w", pady=5)
         r += 1
 
         ttk.Label(panel, text="Notes").grid(row=r, column=0, sticky="nw", pady=5)
@@ -127,8 +128,7 @@ class InvoiceDialog(tk.Toplevel):
         r += 1
 
         # Recompute the preview whenever these change.
-        for var in (self.number_var, self.date_var):
-            var.trace_add("write", lambda *_: self._render_preview())
+        self.number_var.trace_add("write", lambda *_: self._render_preview())
         self.notes.bind("<KeyRelease>", lambda _e: self._render_preview())
 
         ttk.Button(panel, text="Refresh preview",
@@ -202,7 +202,7 @@ class InvoiceDialog(tk.Toplevel):
     def _build_invoice(self) -> inv_mod.Invoice:
         return inv_mod.Invoice(
             number=self.number_var.get().strip() or "INV",
-            date=self.date_var.get().strip(),
+            date=self.date_picker.get_date().isoformat(),
             business=self.business,
             items=self._selected_items(),
             notes=self.notes.get("1.0", "end").strip(),

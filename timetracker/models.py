@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 
 # Days offered when defining a client's regular slot. Kept here so the UI and
@@ -35,7 +35,8 @@ WEEKDAYS = [
 ]
 
 TIME_FORMAT = "%H:%M"
-DATE_FORMAT = "%Y-%m-%d"
+DATE_FORMAT = "%Y-%m-%d"  # Stored form: ISO text sorts in date order.
+DISPLAY_DATE_FORMAT = "%d/%m/%Y"  # Shown to the user (UK order).
 
 
 def _new_id() -> str:
@@ -46,6 +47,24 @@ def _new_id() -> str:
 def parse_time(value: str) -> time:
     """Parse a 'HH:MM' string into a time, raising ValueError if malformed."""
     return datetime.strptime(value.strip(), TIME_FORMAT).time()
+
+
+def format_display_date(value: str) -> str:
+    """Turn a stored 'YYYY-MM-DD' string into 'DD/MM/YYYY' for display.
+
+    Text that is not a valid stored date is returned unchanged so rendering
+    never fails on unexpected input.
+    """
+    try:
+        return datetime.strptime(value.strip(), DATE_FORMAT).strftime(
+            DISPLAY_DATE_FORMAT)
+    except ValueError:
+        return value
+
+
+def parse_display_date(value: str) -> date:
+    """Parse a 'DD/MM/YYYY' string into a date, raising ValueError if bad."""
+    return datetime.strptime(value.strip(), DISPLAY_DATE_FORMAT).date()
 
 
 def compute_hours(start: str, end: str) -> float:

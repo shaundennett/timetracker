@@ -88,3 +88,10 @@ def test_render_pdf_empty_items(tmp_path):
     out = tmp_path / "empty.pdf"
     render_pdf(inv, str(out))
     assert out.exists() and inv.total == 0.0
+
+
+def test_text_preview_shows_dd_mm_yyyy():
+    text = render_text(_invoice())
+    assert "31/07/2026" in text
+    assert "07/07/2026" in text
+    assert "2026-07-31" not in text
