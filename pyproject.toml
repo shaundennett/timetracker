@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "timetracker"
+version = "0.1.0"
+description = "Desktop time tracker for recording billable client visits and monthly billing totals."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+# tkinter ships with the standard CPython installer. The only third-party
+# dependency is fpdf2, a pure-Python PDF writer used for invoice export.
+dependencies = [
+    "fpdf2>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+build = [
+    "pyinstaller>=6.0",
+]
+
+[project.gui-scripts]
+timetracker = "timetracker.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["timetracker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,50 @@
+# ---- Claude / Anthropic credentials ----
+.claude/
+.claude/**
+!.claude/settings.json          # project settings are safe to share
+.claude/settings.local.json      # ...but local overrides are not
+.claude.json
+.claude/.credentials.json
+.credentials.json
+CLAUDE_API_KEY
+anthropic.key
+
+# ---- Generic secrets & env ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+credentials.*
+*_secret*
+*.secret
+
+# ---- API keys / tokens ----
+*.token
+token.json
+api_key*
+apikey*
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*.local
+
+# ---- Personal data & extra venvs ----
+data/
+.venv-1/
