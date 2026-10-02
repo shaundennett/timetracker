@@ -19,7 +19,7 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import List
 
-from .models import BusinessProfile, VisitRecord
+from .models import BusinessProfile, VisitRecord, format_display_date
 
 # GBP by default — VAT + "school" strongly imply a UK sole trader, and the
 # symbol is latin-1 safe for fpdf2's core fonts.
@@ -87,7 +87,7 @@ def render_text(inv: Invoice, width: int = 74) -> str:
     lines.append("")
 
     lines.append(f"Invoice number : {inv.number}")
-    lines.append(f"Invoice date   : {inv.date}")
+    lines.append(f"Invoice date   : {format_display_date(inv.date)}")
     lines.append("-" * width)
 
     # Line-item table.
@@ -96,7 +96,7 @@ def render_text(inv: Invoice, width: int = 74) -> str:
     lines.append("-" * width)
     for it in inv.items:
         desc = (it.description or "")[:23]
-        lines.append(f"{it.date:<11}{desc:<24}{it.hours:>5g}"
+        lines.append(f"{format_display_date(it.date):<11}{desc:<24}{it.hours:>5g}"
                      f"{inv.money(it.rate):>10}{inv.money(it.amount):>12}")
     lines.append("-" * width)
 
@@ -168,7 +168,7 @@ def render_pdf(inv: Invoice, path: str) -> str:
     col = epw / 2
     pdf.set_font("Helvetica", "", 10)
     for label, value in (("Invoice No", inv.number),
-                         ("Date", inv.date)):
+                         ("Date", format_display_date(inv.date))):
         pdf.set_x(pdf.l_margin + col)
         pdf.set_text_color(*_MUTED)
         pdf.cell(col * 0.45, 6, label)
@@ -202,7 +202,7 @@ def render_pdf(inv: Invoice, path: str) -> str:
         desc = it.description or ""
         if it.school:
             desc = f"{desc}  ({it.school})"
-        pdf.cell(w_date, 7, it.date, fill=fill)
+        pdf.cell(w_date, 7, format_display_date(it.date), fill=fill)
         pdf.cell(w_desc, 7, _clip(pdf, desc, w_desc - 2), fill=fill)
         pdf.cell(w_hrs, 7, f"{it.hours:g}", align="R", fill=fill)
         pdf.cell(w_rate, 7, inv.money(it.rate), align="R", fill=fill)
