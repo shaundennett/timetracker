@@ -19,7 +19,8 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import List
 
-from .models import BusinessProfile, VisitRecord, format_display_date
+from .models import PERIOD_WEEK, BusinessProfile, VisitRecord, format_display_date
+from .periods import Period
 
 # GBP by default — VAT + "school" strongly imply a UK sole trader, and the
 # symbol is latin-1 safe for fpdf2's core fonts.
@@ -34,6 +35,7 @@ class Invoice:
     items: List[VisitRecord] = field(default_factory=list)
     notes: str = ""
     currency: str = CURRENCY
+    period: str = ""  # e.g. "July 2026"; shown on the invoice when set
 
     # ---- money -------------------------------------------------------- #
     @property
@@ -60,6 +62,17 @@ def suggest_number(month_key: str) -> str:
     """A sensible default invoice number for a month, e.g. INV-202607."""
     return f"INV-{month_key.replace('-', '')}"
 
+
+def suggest_number_for_period(period: Period) -> str:
+    """Default invoice number: INV-202607 for a month, INV-2026W28 for a week.
+
+    Weeks use the ISO year and week number, so the week around New Year gets a
+    number that matches the week rather than the calendar year of its Monday.
+    """
+    if period.kind == PERIOD_WEEK:
+        year, week = period.iso_week
+        return f"INV-{year}W{week:02d}"
+    return suggest_number(f"{period.start.year:04d}-{period.start.month:02d}")
 
 # ---------------------------------------------------------------------- #
 # Text rendering (on-screen preview)
@@ -88,6 +101,8 @@ def render_text(inv: Invoice, width: int = 74) -> str:
 
     lines.append(f"Invoice number : {inv.number}")
     lines.append(f"Invoice date   : {format_display_date(inv.date)}")
+    if inv.period:
+        lines.append(f"Period         : {inv.period}")
     lines.append("-" * width)
 
     # Line-item table.
@@ -176,8 +191,11 @@ def render_pdf(inv: Invoice, path: str) -> str:
     # ---- Invoice meta (number + date) ------------------------------- #
     col = epw / 2
     pdf.set_font("Helvetica", "", 10)
-    for label, value in (("Invoice No", inv.number),
-                         ("Date", format_display_date(inv.date))):
+    meta = [("Invoice No", inv.number),
+            ("Date", format_display_date(inv.date))]
+    if inv.period:
+        meta.append(("Period", inv.period))
+    for label, value in meta:
         pdf.set_x(pdf.l_margin + col)
         pdf.set_text_color(*_MUTED)
         pdf.cell(col * 0.45, 6, label)

@@ -19,10 +19,18 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import date
 from pathlib import Path
 from typing import List
 
-from .models import BusinessProfile, Client, VisitRecord
+from .models import (
+    DATE_FORMAT,
+    BusinessProfile,
+    Client,
+    Settings,
+    VisitRecord,
+)
+from .periods import month_keys_between
 
 
 class Storage:
@@ -33,6 +41,7 @@ class Storage:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.clients_file = self.data_dir / "clients.json"
         self.business_file = self.data_dir / "business.json"
+        self.settings_file = self.data_dir / "settings.json"
 
     # ------------------------------------------------------------------ #
     # Low-level helpers
@@ -106,11 +115,38 @@ class Storage:
         return profile
 
     # ------------------------------------------------------------------ #
+    # User settings (single record)
+    # ------------------------------------------------------------------ #
+    def load_settings(self) -> Settings:
+        """Return stored preferences, or the defaults if unset/unreadable."""
+        raw = self._read_json(self.settings_file, {})
+        return Settings.from_dict(raw) if isinstance(raw, dict) else Settings()
+
+    def save_settings(self, settings: Settings) -> Settings:
+        self._write_json(self.settings_file, settings.to_dict())
+        return settings
+
+    # ------------------------------------------------------------------ #
     # Visit records (stored per month)
     # ------------------------------------------------------------------ #
     def list_records(self, month_key: str) -> List[VisitRecord]:
         raw = self._read_json(self._month_file(month_key), [])
         records = [VisitRecord.from_dict(item) for item in raw]
+        records.sort(key=lambda r: (r.date, r.start_time))
+        return records
+
+    def list_records_between(self, start: date, end: date) -> List[VisitRecord]:
+        """Records dated from ``start`` to ``end`` inclusive, in date order.
+
+        Files are monthly, so a range such as a week can span two of them.
+        """
+        first, last = start.strftime(DATE_FORMAT), end.strftime(DATE_FORMAT)
+        records = [
+            r
+            for key in month_keys_between(start, end)
+            for r in self.list_records(key)
+            if first <= r.date <= last  # ISO text compares in date order
+        ]
         records.sort(key=lambda r: (r.date, r.start_time))
         return records
 

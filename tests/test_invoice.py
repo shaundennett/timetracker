@@ -8,8 +8,10 @@ from timetracker.invoice import (
     render_text,
     schools_in,
     suggest_number,
+    suggest_number_for_period,
 )
 from timetracker.models import BusinessProfile, VisitRecord
+from timetracker.periods import month_of, week_of
 from timetracker.storage import Storage
 
 
@@ -95,6 +97,24 @@ def test_text_preview_shows_dd_mm_yyyy():
     assert "31/07/2026" in text
     assert "07/07/2026" in text
     assert "2026-07-31" not in text
+
+
+def test_suggest_number_for_period():
+    from datetime import date
+    assert suggest_number_for_period(month_of(date(2026, 7, 8))) == "INV-202607"
+    assert suggest_number_for_period(week_of(date(2026, 7, 8))) == "INV-2026W28"
+    # The week containing 1 Jan 2027 is ISO week 53 of 2026.
+    assert suggest_number_for_period(week_of(date(2027, 1, 1))) == "INV-2026W53"
+
+
+def test_period_line_shown_when_set_and_omitted_when_empty(tmp_path):
+    inv = _invoice()
+    assert "Period" not in render_text(inv)
+    inv.period = "Week commencing 06/07/2026"
+    assert "Period         : Week commencing 06/07/2026" in render_text(inv)
+    out = tmp_path / "weekly.pdf"
+    render_pdf(inv, str(out))  # must not raise on the extra line
+    assert out.read_bytes().startswith(b"%PDF")
 
 
 def test_pdf_masthead_leaves_cursor_below_a_long_address():
