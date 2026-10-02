@@ -131,6 +131,39 @@ def test_list_records_between_empty(store):
                                       date(2026, 7, 12)) == []
 
 
+def _write_month(store, month, rows):
+    import json
+    (store.data_dir / f"time_{month}.json").write_text(
+        json.dumps([r.to_dict() for r in rows]), encoding="utf-8")
+
+
+def test_duplicate_id_within_a_month_is_repaired(store):
+    a, b = _visit("2026-07-01"), _visit("2026-07-02")
+    b.id = a.id
+    _write_month(store, "2026-07", [a, b])
+
+    ids = [r.id for r in store.list_records("2026-07")]
+    assert len(ids) == 2 and len(set(ids)) == 2
+    # The repair is saved, so ids stay stable on the next load.
+    assert [r.id for r in store.list_records("2026-07")] == ids
+
+
+def test_duplicate_id_across_months_is_repaired(store):
+    from datetime import date
+    sep, octo = _visit("2026-09-28"), _visit("2026-10-04")
+    octo.id = sep.id
+    _write_month(store, "2026-09", [sep])
+    _write_month(store, "2026-10", [octo])
+
+    got = store.list_records_between(date(2026, 9, 28), date(2026, 10, 4))
+    assert [r.date for r in got] == ["2026-09-28", "2026-10-04"]
+    assert len({r.id for r in got}) == 2
+    assert got[0].id == sep.id  # the earlier month keeps its id
+    # Saved, so the ids are stable on reload.
+    again = store.list_records_between(date(2026, 9, 28), date(2026, 10, 4))
+    assert [r.id for r in again] == [r.id for r in got]
+
+
 def test_settings_default_round_trip_and_bad_values(store):
     from timetracker.models import Settings
     assert store.load_settings().period_kind == "month"

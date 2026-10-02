@@ -29,6 +29,7 @@ from .models import (
     Client,
     Settings,
     VisitRecord,
+    _new_id,
 )
 from .periods import month_keys_between
 
@@ -132,6 +133,18 @@ class Storage:
     def list_records(self, month_key: str) -> List[VisitRecord]:
         raw = self._read_json(self._month_file(month_key), [])
         records = [VisitRecord.from_dict(item) for item in raw]
+        # Repair duplicate ids (hand-edited or copied data); the UI keys
+        # its list rows by id and would otherwise crash.
+        seen = set()
+        repaired = False
+        for r in records:
+            if r.id in seen:
+                r.id = _new_id()
+                repaired = True
+            seen.add(r.id)
+        if repaired:
+            self._write_json(self._month_file(month_key),
+                             [r.to_dict() for r in records])
         records.sort(key=lambda r: (r.date, r.start_time))
         return records
 
@@ -141,12 +154,23 @@ class Storage:
         Files are monthly, so a range such as a week can span two of them.
         """
         first, last = start.strftime(DATE_FORMAT), end.strftime(DATE_FORMAT)
-        records = [
-            r
-            for key in month_keys_between(start, end)
-            for r in self.list_records(key)
-            if first <= r.date <= last  # ISO text compares in date order
-        ]
+        records = []
+        seen = set()
+        for key in month_keys_between(start, end):
+            month = self.list_records(key)
+            # The same id in two month files would crash the UI list, so
+            # give the later copy a new id and save it.
+            clashes = [r for r in month if r.id in seen]
+            for r in clashes:
+                r.id = _new_id()
+            if clashes:
+                self._write_json(self._month_file(key),
+                                 [r.to_dict() for r in month])
+            seen.update(r.id for r in month)
+            records.extend(
+                r for r in month
+                if first <= r.date <= last  # ISO text compares in date order
+            )
         records.sort(key=lambda r: (r.date, r.start_time))
         return records
 
