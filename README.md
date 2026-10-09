@@ -16,6 +16,11 @@ No database, no server — just a tkinter GUI over plain JSON files.
   client event for a date and confirming/adjusting the pre-filled fields. Each
   record **snapshots** its billing fields, so changing a client's rate later
   never rewrites past visits.
+- **Role** — a completely separate dataset (v0.4.0+): clients, visits, business
+  profile, and settings are isolated per role. Use multiple roles to track
+  different kinds of work (e.g. "Supply teaching", "Private tutoring", "Exam
+  marking") and switch between them. Each role has its own invoices and tax
+  reports. On first upgrade, existing data is migrated into a "Default" role.
 
 ## Layout
 
@@ -23,11 +28,12 @@ No database, no server — just a tkinter GUI over plain JSON files.
 timetracker/
   models.py        Client and VisitRecord dataclasses + time/amount helpers
   storage.py       JSON persistence (clients.json + time_YYYY-MM.json per month)
+  roles.py         multi-role support: role manager and manifest (v0.4.0+)
   periods.py       month / Monday-Sunday week date arithmetic
   invoice.py       build/render invoices (text preview + PDF via fpdf2)
   tax_report.py    UK tax year summaries (payments + mileage by month)
   ui/
-    app.py            main window (entry screen + Events/Invoice/Help menus)
+    app.py            main window (entry screen + Events/Invoice/Role/Help menus)
     record_tab.py     daily workflow: pick date -> pick event -> save visit
     date_picker.py    read-only DD/MM/YYYY box with calendar popup
     time_picker.py    24-hour HH and MM boxes for start/end times
@@ -37,9 +43,13 @@ timetracker/
     business_dialog.py edit your business/invoice details
     invoice_dialog.py  create, preview, save-as-PDF, and print invoices
     tax_year_dialog.py UK tax year summary report
+    role_dialog.py     create/rename/delete roles
     style.py          app-wide ttk theme (colours, fonts, tables, buttons)
   __main__.py      entry point
-data/              JSON files created at runtime (default location)
+data/              data root (contains one folder per role + roles.json manifest)
+  Default/         first role's data (clients.json, business.json, time_*.json)
+  <role-id>/       other roles' data directories
+  roles.json       role manifest (which role is active, list of all roles)
 ```
 
 The only third-party dependency is **fpdf2** (a pure-Python PDF writer) for
@@ -86,6 +96,24 @@ timetracker
 event's default. It is *not* shown on invoices — it's tracked separately (with a
 monthly total) for mileage-based tax calculations.
 
+## Multiple roles (v0.4.0+)
+
+If you track multiple income streams (e.g. supply teaching, private tutoring, exam marking), use **roles** to keep them completely separate. Each role has its own clients, visits, business profile, and invoices.
+
+To create and switch roles:
+
+1. Click **Role** in the menu bar.
+2. **New role…** creates a new empty role. When you create a role, you can
+   optionally copy the business profile (name, address, UTR, etc.) from an
+   existing role to save re-entering it. The new role is active immediately.
+3. **Role name** (the radio buttons) switch between roles. Each switch is instant
+   — no data loss, and your place in the active role is remembered.
+4. **Rename active role…** and **Delete active role…** manage roles. Rename is
+   safe; delete removes the role and all its data (with confirmation).
+
+The window title shows the active role name. On first upgrade from v0.3 or
+earlier, your existing data is migrated into a "Default" role with no loss.
+
 ## Invoicing
 
 1. Enter your details once via **Events ▸ Business details…** — full name,
@@ -115,10 +143,20 @@ month file.
 
 ## Data files
 
-- `clients.json` — all client definitions.
-- `settings.json` — preferences (currently the Month/Week view).
-- `time_YYYY-MM.json` — one file per month of visit records, keeping each
-  billing period self-contained.
+As of v0.4.0, the data directory is a **root** containing one folder per role
+plus a manifest:
+
+- `roles.json` — the role manifest (list of roles, which is active). Created
+  automatically on first run.
+- Each role's folder contains:
+  - `clients.json` — all client definitions for this role.
+  - `settings.json` — preferences for this role (Month/Week view, etc.).
+  - `time_YYYY-MM.json` — one file per month of visit records.
+
+On first upgrade from v0.3 or earlier, existing `clients.json`, `business.json`,
+`settings.json`, and `time_*.json` files in the data directory are copied into
+a new "Default" role folder (originals left in place as a backup); `roles.json`
+is created to complete the migration.
 
 Writes are atomic (temp file + replace), so an interrupted save can't corrupt
 existing data.
