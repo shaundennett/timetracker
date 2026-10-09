@@ -33,6 +33,43 @@ from .models import (
 from .periods import month_keys_between
 
 
+# ============================================================================ #
+# Module-level atomic JSON helpers (used by Storage and RoleManager)
+# ============================================================================ #
+
+
+def read_json(path: Path, default):
+    """Read JSON from path, returning default if missing or corrupt.
+
+    Used for safe, tolerant loading of persisted data.
+    """
+    if not path.exists():
+        return default
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        # Corrupt or unreadable file: fall back rather than crash the UI.
+        return default
+
+
+def write_json(path: Path, payload) -> None:
+    """Write JSON to path atomically (temp file + replace).
+
+    Guarantees that an interrupted write cannot corrupt existing data.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic write: temp file in the same dir, then os.replace.
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 class Storage:
     """File-backed store for clients and monthly visit records."""
 
@@ -44,31 +81,17 @@ class Storage:
         self.settings_file = self.data_dir / "settings.json"
 
     # ------------------------------------------------------------------ #
-    # Low-level helpers
+    # Low-level helpers (delegate to module-level atomic JSON functions)
     # ------------------------------------------------------------------ #
     @staticmethod
     def _read_json(path: Path, default):
-        if not path.exists():
-            return default
-        try:
-            with path.open("r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except (json.JSONDecodeError, OSError):
-            # Corrupt or unreadable file: fall back rather than crash the UI.
-            return default
+        """Deprecated: use module-level read_json() instead. Kept for compatibility."""
+        return read_json(path, default)
 
     @staticmethod
     def _write_json(path: Path, payload) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic write: temp file in the same dir, then os.replace.
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump(payload, fh, indent=2, ensure_ascii=False)
-            os.replace(tmp, path)
-        finally:
-            if os.path.exists(tmp):
-                os.remove(tmp)
+        """Deprecated: use module-level write_json() instead. Kept for compatibility."""
+        return write_json(path, payload)
 
     def _month_file(self, month_key: str) -> Path:
         """Path to the file holding records for a 'YYYY-MM' month."""
