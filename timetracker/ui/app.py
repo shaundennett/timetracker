@@ -17,7 +17,7 @@ from .business_dialog import BusinessDialog
 from .clients_dialog import ClientsDialog
 from .invoice_dialog import InvoiceDialog
 from .record_tab import RecordTab
-from .role_dialog import RoleDialog
+from .role_dialog import RoleDialog, RenameRoleDialog, DeleteRoleDialog
 from .style import apply_theme
 from .tax_year_dialog import TaxYearDialog
 
@@ -110,6 +110,10 @@ class App(tk.Tk):
         self._role_menu.add_separator()
         self._role_menu.add_command(label="New role…",
                                      command=self.open_new_role_dialog)
+        self._role_menu.add_command(label="Rename active role…",
+                                     command=self.open_rename_role_dialog)
+        self._role_menu.add_command(label="Delete active role…",
+                                     command=self.open_delete_role_dialog)
 
     def switch_role(self, role_id: str) -> None:
         """Switch to a different role and rebuild the UI."""
@@ -162,6 +166,35 @@ class App(tk.Tk):
         """Callback when a new role is created: rebuild menu and switch to it."""
         self._rebuild_role_menu()
         self.switch_role(role_id)
+
+    def open_rename_role_dialog(self) -> None:
+        """Open the dialog to rename the active role."""
+        if self.role_manager:
+            RenameRoleDialog(self, self.role_manager,
+                           self.role_manager.active_role().id,
+                           on_renamed=self._on_role_renamed)
+
+    def open_delete_role_dialog(self) -> None:
+        """Open the dialog to delete the active role."""
+        if self.role_manager:
+            DeleteRoleDialog(self, self.role_manager,
+                           self.role_manager.active_role().id,
+                           on_deleted=self._on_role_deleted)
+
+    def _on_role_renamed(self) -> None:
+        """Callback when a role is renamed: rebuild menu and update title."""
+        self._update_window_title()
+        self._rebuild_role_menu()
+
+    def _on_role_deleted(self) -> None:
+        """Callback when a role is deleted: switch to first available role."""
+        if self.role_manager:
+            roles = self.role_manager.list_roles()
+            if roles:
+                self.switch_role(roles[0].id)
+            else:
+                # Should not happen (can't delete the last role), but be safe.
+                self._rebuild_role_menu()
 
 
 def run() -> None:

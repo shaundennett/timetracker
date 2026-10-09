@@ -115,3 +115,155 @@ class RoleDialog(tk.Toplevel):
         if self.on_role_created:
             self.on_role_created(new_role.id)
         self.destroy()
+
+
+class RenameRoleDialog(tk.Toplevel):
+    """Modal dialog for renaming a role."""
+
+    def __init__(
+        self,
+        parent: tk.Tk,
+        role_manager: RoleManager,
+        role_id: str,
+        on_renamed: Callable[[], None] | None = None,
+    ):
+        super().__init__(parent)
+        self.role_manager = role_manager
+        self.role_id = role_id
+        self.on_renamed = on_renamed
+
+        role = next((r for r in role_manager.list_roles() if r.id == role_id), None)
+        if not role:
+            self.destroy()
+            return
+
+        self.title(f"Rename Role: {role.name}")
+        self.geometry("400x150")
+        self.transient(parent)
+        self.grab_set()
+
+        # Build the form.
+        frame = tk.Frame(self)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        tk.Label(frame, text="New name:", font=("TkDefaultFont", 10)).pack(
+            anchor="w", pady=(0, 5)
+        )
+        self.name_var = tk.StringVar(value=role.name)
+        self.name_entry = tk.Entry(frame, textvariable=self.name_var, width=40)
+        self.name_entry.pack(anchor="w", pady=(0, 15))
+        self.name_entry.focus()
+        self.name_entry.select_range(0, "end")
+
+        # Buttons.
+        button_frame = tk.Frame(frame)
+        button_frame.pack(anchor="e", pady=(15, 0))
+
+        tk.Button(
+            button_frame,
+            text="Cancel",
+            command=self.destroy,
+            width=10,
+        ).pack(side="left", padx=(0, 10))
+
+        tk.Button(
+            button_frame,
+            text="Rename",
+            command=self._on_rename,
+            bg=ACCENT,
+            fg="white",
+            width=10,
+        ).pack(side="left")
+
+    def _on_rename(self) -> None:
+        """Handle Rename button click."""
+        new_name = self.name_var.get().strip()
+
+        try:
+            self.role_manager.rename_role(self.role_id, new_name)
+        except ValueError as e:
+            messagebox.showerror("Invalid name", str(e))
+            return
+
+        if self.on_renamed:
+            self.on_renamed()
+        self.destroy()
+
+
+class DeleteRoleDialog(tk.Toplevel):
+    """Modal dialog for deleting a role (with confirmation)."""
+
+    def __init__(
+        self,
+        parent: tk.Tk,
+        role_manager: RoleManager,
+        role_id: str,
+        on_deleted: Callable[[], None] | None = None,
+    ):
+        super().__init__(parent)
+        self.role_manager = role_manager
+        self.role_id = role_id
+        self.on_deleted = on_deleted
+
+        role = next((r for r in role_manager.list_roles() if r.id == role_id), None)
+        if not role:
+            self.destroy()
+            return
+
+        self.title(f"Delete Role: {role.name}")
+        self.geometry("450x200")
+        self.transient(parent)
+        self.grab_set()
+
+        # Build the form.
+        frame = tk.Frame(self)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        tk.Label(
+            frame,
+            text=f"Are you sure you want to delete the role '{role.name}'?",
+            font=("TkDefaultFont", 10),
+            wraplength=400,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 15))
+
+        tk.Label(
+            frame,
+            text="This will permanently delete all data in this role (clients, visits, etc.).\nThis action cannot be undone.",
+            font=("TkDefaultFont", 9),
+            wraplength=400,
+            justify="left",
+            fg="red",
+        ).pack(anchor="w", pady=(0, 15))
+
+        # Buttons.
+        button_frame = tk.Frame(frame)
+        button_frame.pack(anchor="e", pady=(15, 0))
+
+        tk.Button(
+            button_frame,
+            text="Cancel",
+            command=self.destroy,
+            width=10,
+        ).pack(side="left", padx=(0, 10))
+
+        tk.Button(
+            button_frame,
+            text="Delete",
+            command=self._on_delete,
+            bg="red",
+            fg="white",
+            width=10,
+        ).pack(side="left")
+
+    def _on_delete(self) -> None:
+        """Handle Delete button click."""
+        try:
+            self.role_manager.delete_role(self.role_id)
+        except ValueError as e:
+            messagebox.showerror("Cannot delete role", str(e))
+            return
+
+        if self.on_deleted:
+            self.on_deleted()
+        self.destroy()
