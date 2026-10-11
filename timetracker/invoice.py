@@ -53,11 +53,6 @@ class Invoice:
 # ---------------------------------------------------------------------- #
 # Assembly helpers
 # ---------------------------------------------------------------------- #
-def schools_in(records: List[VisitRecord]) -> List[str]:
-    """Distinct, non-empty school names appearing in the records, sorted."""
-    return sorted({r.school for r in records if r.school})
-
-
 def suggest_number(month_key: str) -> str:
     """A sensible default invoice number for a month, e.g. INV-202607."""
     return f"INV-{month_key.replace('-', '')}"

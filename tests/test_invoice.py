@@ -6,7 +6,6 @@ from timetracker.invoice import (
     Invoice,
     render_pdf,
     render_text,
-    schools_in,
     suggest_number,
     suggest_number_for_period,
 )
@@ -60,8 +59,7 @@ def test_money_formatting():
     assert inv.money(1234.5) == "£1,234.50"
 
 
-def test_schools_and_number_helpers():
-    assert schools_in(_items()) == ["Elmfield", "Oakwood"]
+def test_number_helpers():
     assert suggest_number("2026-07") == "INV-202607"
 
 

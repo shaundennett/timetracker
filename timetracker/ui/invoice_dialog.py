@@ -1,6 +1,6 @@
 """Dialog for generating, previewing, saving, and printing an invoice.
 
-Choose the invoice period by year and month, optionally narrow to one school,
+Choose the invoice period by year and month,
 adjust the invoice number, date, and notes, watch the live text preview update,
 then Save as PDF or Print.
 """
@@ -20,7 +20,6 @@ from ..storage import Storage
 from .date_picker import DatePicker
 from .style import current_accent, BORDER, INK, SURFACE
 
-_ALL_SCHOOLS = "All schools"
 _MONTHS = list(calendar.month_name)[1:]  # ["January", ..., "December"]
 
 
@@ -127,15 +126,6 @@ class InvoiceDialog(tk.Toplevel):
         ttk.Button(week_row, text="▶", width=3,
                    command=lambda: self._step_week(1)).pack(side="left")
         self._week_widgets = [week_label, week_row]
-
-        ttk.Label(panel, text="School").grid(row=r, column=0, sticky="w", pady=5)
-        self.school_var = tk.StringVar(value=_ALL_SCHOOLS)
-        self.school_combo = ttk.Combobox(panel, textvariable=self.school_var,
-                                        state="readonly", width=16)
-        self.school_combo.grid(row=r, column=1, sticky="w", pady=5)
-        self.school_combo.bind("<<ComboboxSelected>>",
-                              lambda _e: self._render_preview())
-        r += 1
 
         ttk.Label(panel, text="Invoice no.").grid(row=r, column=0, sticky="w",
                                                  pady=5)
@@ -247,31 +237,19 @@ class InvoiceDialog(tk.Toplevel):
         self._on_period_change()
 
     def _on_period_change(self) -> None:
-        """Period changed: refresh school list, suggested number, preview."""
+        """Period changed: refresh suggested number and preview."""
         period = self._period()
         self.week_text.set(f"Week {period.iso_week[1]}: {period.range_label}")
-        records = self._period_records()
-        schools = [_ALL_SCHOOLS] + inv_mod.schools_in(records)
-        self.school_combo["values"] = schools
-        if self.school_var.get() not in schools:
-            self.school_var.set(_ALL_SCHOOLS)
         self.number_var.set(inv_mod.suggest_number_for_period(
             period, self.role_name))
         self._render_preview()
-
-    def _selected_items(self) -> list[VisitRecord]:
-        records = self._period_records()
-        school = self.school_var.get()
-        if school and school != _ALL_SCHOOLS:
-            records = [r for r in records if r.school == school]
-        return records
 
     def _build_invoice(self) -> inv_mod.Invoice:
         return inv_mod.Invoice(
             number=self.number_var.get().strip() or "INV",
             date=self.date_picker.get_date().isoformat(),
             business=self.business,
-            items=self._selected_items(),
+            items=self._period_records(),
             notes=self.notes.get("1.0", "end").strip(),
             period=self._period().label,
         )

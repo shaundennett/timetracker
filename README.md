@@ -125,8 +125,7 @@ earlier, your existing data is migrated into a "Default" role with no loss.
    "From" block on every invoice.
 2. Click **Create invoice…** (toolbar or *Invoice* menu). Under **Bill by**,
    choose **Month** (pick the year and month) or **Week** (step through weeks
-   with ◀ ▶; numbers look like `INV-2026W28`), and optionally narrow to a
-   single school; the line items pre-fill. The invoice shows the period it
+   with ◀ ▶; numbers look like `INV-2026W28`); the line items pre-fill. The invoice shows the period it
    covers. The Month/Week choice is the same setting as the entry screen's.
 3. Adjust the invoice number, date, and notes — the preview updates live.
 4. **Save as PDF…** writes a formatted PDF anywhere you choose; **Print** sends
