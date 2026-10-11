@@ -14,24 +14,48 @@ from __future__ import annotations
 
 import os
 import shutil
-from dataclasses import asdict, dataclass
+import re
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import List
 
 from .models import _new_id
 from .storage import read_json, write_json, Storage
 
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _check_color(color: str) -> str:
+    """Return a normalised ``#rrggbb`` colour ('' allowed); raise ValueError."""
+    color = color.strip()
+    if color and not _HEX_COLOR.match(color):
+        raise ValueError("Colour must be in #rrggbb format")
+    return color.lower()
+
 
 @dataclass
 class Role:
-    """A role: an id (stable folder name) and a display name."""
+    """A role: an id (stable folder name), a display name and an accent colour.
+
+    ``color`` is a ``#rrggbb`` string; empty means the app's default accent.
+    """
 
     id: str
     name: str
+    color: str = ""
 
     def to_dict(self) -> dict:
-        """Serialize to JSON-compatible dict."""
-        return asdict(self)
+        """Serialize to JSON-compatible dict (empty colour is omitted)."""
+        data = asdict(self)
+        if not data["color"]:
+            del data["color"]
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Role":
+        """Build a Role, ignoring unknown keys and defaulting missing ones."""
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in known})
 
 
 class RoleManager:
@@ -107,7 +131,7 @@ class RoleManager:
         manifest = self._read_manifest()
         if not manifest:
             return []
-        roles = [Role(**r) for r in manifest.get("roles", [])]
+        roles = [Role.from_dict(r) for r in manifest.get("roles", [])]
         roles.sort(key=lambda r: r.name.lower())
         return roles
 
@@ -120,7 +144,9 @@ class RoleManager:
             manifest = self._read_manifest()
 
         active_id = manifest.get("active") if manifest else None
-        roles = [Role(**r) for r in manifest.get("roles", [])] if manifest else []
+        roles = (
+            [Role.from_dict(r) for r in manifest.get("roles", [])] if manifest else []
+        )
 
         if active_id and any(r.id == active_id for r in roles):
             return next(r for r in roles if r.id == active_id)
@@ -143,21 +169,23 @@ class RoleManager:
             manifest["active"] = role_id
             write_json(self.manifest_file, manifest)
 
-    def create_role(self, name: str) -> Role:
-        """Create a new empty role with the given name.
+    def create_role(self, name: str, color: str = "") -> Role:
+        """Create a new empty role with the given name and optional colour.
 
-        Validates that the name is non-empty and not a case-insensitive duplicate.
-        Raises ValueError if invalid. Does not switch to the new role.
+        Validates that the name is non-empty and not a case-insensitive duplicate,
+        and that the colour is ``#rrggbb`` (or empty). Raises ValueError if
+        invalid. Does not switch to the new role.
         """
         trimmed = name.strip()
         if not trimmed:
             raise ValueError("Role name cannot be empty")
+        color = _check_color(color)
 
         existing = self.list_roles()
         if any(r.name.lower() == trimmed.lower() for r in existing):
             raise ValueError(f"A role named '{trimmed}' already exists")
 
-        new_role = Role(id=_new_id(), name=trimmed)
+        new_role = Role(id=_new_id(), name=trimmed, color=color)
         role_dir = self.role_dir(new_role.id)
         role_dir.mkdir(parents=True, exist_ok=True)
 
@@ -184,6 +212,27 @@ class RoleManager:
             raise ValueError(f"A role named '{trimmed}' already exists")
 
         target.name = trimmed
+        manifest = self._read_manifest()
+        if manifest:
+            manifest["roles"] = [
+                r if r["id"] != role_id else target.to_dict() for r in manifest["roles"]
+            ]
+            write_json(self.manifest_file, manifest)
+
+        return target
+
+    def set_role_color(self, role_id: str, color: str) -> Role:
+        """Set a role's accent colour ('' resets to the default).
+
+        Raises ValueError if the colour is malformed or the role is unknown.
+        """
+        color = _check_color(color)
+
+        target = next((r for r in self.list_roles() if r.id == role_id), None)
+        if not target:
+            raise ValueError(f"Role {role_id} not found")
+
+        target.color = color
         manifest = self._read_manifest()
         if manifest:
             manifest["roles"] = [

@@ -18,7 +18,7 @@ from ..models import PERIOD_MONTH, PERIOD_WEEK, Settings, VisitRecord
 from ..periods import Period, month_of, shift, week_of
 from ..storage import Storage
 from .date_picker import DatePicker
-from .style import ACCENT, BORDER, INK, SURFACE
+from .style import current_accent, BORDER, INK, SURFACE
 
 _ALL_SCHOOLS = "All schools"
 _MONTHS = list(calendar.month_name)[1:]  # ["January", ..., "December"]
@@ -26,9 +26,11 @@ _MONTHS = list(calendar.month_name)[1:]  # ["January", ..., "December"]
 
 class InvoiceDialog(tk.Toplevel):
     def __init__(self, parent, storage: Storage,
-                 default_date: _dt.date | None = None):
+                 default_date: _dt.date | None = None, role_name: str = ""):
         super().__init__(parent)
         self.storage = storage
+        # Included in the suggested invoice number so roles never clash.
+        self.role_name = role_name
         self.business = storage.load_business()
         # Month or week billing; the same saved setting as the entry screen.
         self.period_kind = tk.StringVar(
@@ -152,7 +154,7 @@ class InvoiceDialog(tk.Toplevel):
         self.notes = tk.Text(panel, height=4, width=24, wrap="word",
                             relief="solid", borderwidth=1,
                             highlightthickness=1, highlightbackground=BORDER,
-                            highlightcolor=ACCENT, background=SURFACE,
+                            highlightcolor=current_accent(), background=SURFACE,
                             foreground=INK, insertbackground=INK,
                             padx=6, pady=4, font=("Segoe UI", 10))
         self.notes.grid(row=r, column=1, sticky="ew", pady=5)
@@ -177,7 +179,7 @@ class InvoiceDialog(tk.Toplevel):
             row=0, column=0, sticky="w")
         self.preview = tk.Text(right, wrap="none", relief="solid",
                              borderwidth=1, highlightthickness=1,
-                             highlightbackground=BORDER, highlightcolor=ACCENT,
+                             highlightbackground=BORDER, highlightcolor=current_accent(),
                              font=("Consolas", 10), background=SURFACE,
                              foreground=INK, padx=12, pady=10, state="disabled")
         self.preview.grid(row=1, column=0, sticky="nsew")
@@ -253,7 +255,8 @@ class InvoiceDialog(tk.Toplevel):
         self.school_combo["values"] = schools
         if self.school_var.get() not in schools:
             self.school_var.set(_ALL_SCHOOLS)
-        self.number_var.set(inv_mod.suggest_number_for_period(period))
+        self.number_var.set(inv_mod.suggest_number_for_period(
+            period, self.role_name))
         self._render_preview()
 
     def _selected_items(self) -> list[VisitRecord]:

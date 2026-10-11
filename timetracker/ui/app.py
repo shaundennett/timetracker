@@ -17,8 +17,10 @@ from .business_dialog import BusinessDialog
 from .clients_dialog import ClientsDialog
 from .invoice_dialog import InvoiceDialog
 from .record_tab import RecordTab
-from .role_dialog import RoleDialog, RenameRoleDialog, DeleteRoleDialog
-from .style import apply_theme
+from .role_dialog import (
+    RoleDialog, RenameRoleDialog, RoleColorDialog, DeleteRoleDialog,
+)
+from .style import apply_theme, current_accent, readable_fg
 from .tax_year_dialog import TaxYearDialog
 
 
@@ -40,8 +42,9 @@ class App(tk.Tk):
         self.geometry("1120x720")
         self.minsize(960, 600)
 
-        apply_theme(self)
+        self._apply_role_theme()
         self._build_menu()
+        self._update_role_banner()
 
         self.record_tab = RecordTab(
             self, self.storage,
@@ -51,6 +54,24 @@ class App(tk.Tk):
             on_tax_year=self.open_tax_year_dialog,
         )
         self.record_tab.pack(fill="both", expand=True)
+
+    def _apply_role_theme(self) -> None:
+        """Apply the theme using the active role's accent colour."""
+        accent = self.role_manager.active_role().color if self.role_manager else ""
+        apply_theme(self, accent) if accent else apply_theme(self)
+
+    def _update_role_banner(self) -> None:
+        """Show the active role's name in a bar coloured with its accent."""
+        if not self.role_manager:
+            return
+        if not hasattr(self, "_role_banner"):
+            self._role_banner = tk.Label(self, anchor="w", padx=16, pady=6,
+                                         font=("Segoe UI Semibold", 14))
+            self._role_banner.pack(side="top", fill="x")
+        accent = current_accent()
+        self._role_banner.configure(
+            text=f"Role: {self.role_manager.active_role().name}",
+            background=accent, foreground=readable_fg(accent))
 
     def _update_window_title(self) -> None:
         """Update the window title to show the active role (if multi-role enabled)."""
@@ -112,6 +133,8 @@ class App(tk.Tk):
                                      command=self.open_new_role_dialog)
         self._role_menu.add_command(label="Rename active role…",
                                      command=self.open_rename_role_dialog)
+        self._role_menu.add_command(label="Change colour of active role…",
+                                     command=self.open_role_color_dialog)
         self._role_menu.add_command(label="Delete active role…",
                                      command=self.open_delete_role_dialog)
 
@@ -123,8 +146,16 @@ class App(tk.Tk):
         self.role_manager.set_active(role_id)
         self.storage = self.role_manager.active_storage()
         self._update_window_title()
+        self._rebuild_record_tab()
 
-        # Rebuild the record tab with the new storage.
+        # Update the role menu checkmark.
+        self._rebuild_role_menu()
+
+    def _rebuild_record_tab(self) -> None:
+        """Re-apply the role theme, then rebuild the record tab so plain tk
+        widgets pick up the accent colour."""
+        self._apply_role_theme()
+        self._update_role_banner()
         self.record_tab.destroy()
         self.record_tab = RecordTab(
             self, self.storage,
@@ -135,9 +166,6 @@ class App(tk.Tk):
         )
         self.record_tab.pack(fill="both", expand=True)
 
-        # Update the role menu checkmark.
-        self._rebuild_role_menu()
-
     def open_events_dialog(self) -> None:
         # The dialog refreshes the entry screen's event picker on every change.
         ClientsDialog(self, self.storage,
@@ -147,8 +175,10 @@ class App(tk.Tk):
         BusinessDialog(self, self.storage)
 
     def open_invoice_dialog(self) -> None:
+        role_name = self.role_manager.active_role().name if self.role_manager else ""
         InvoiceDialog(self, self.storage,
-                      default_date=self.record_tab.current_date())
+                      default_date=self.record_tab.current_date(),
+                      role_name=role_name)
 
     def open_tax_year_dialog(self) -> None:
         TaxYearDialog(self, self.storage)
@@ -174,6 +204,17 @@ class App(tk.Tk):
                            self.role_manager.active_role().id,
                            on_renamed=self._on_role_renamed)
 
+    def open_role_color_dialog(self) -> None:
+        """Open the dialog to change the active role's colour."""
+        if self.role_manager:
+            RoleColorDialog(self, self.role_manager,
+                          self.role_manager.active_role().id,
+                          on_changed=self._on_role_color_changed)
+
+    def _on_role_color_changed(self) -> None:
+        """Callback when a role's colour changes: restyle the whole window."""
+        self._rebuild_record_tab()
+
     def open_delete_role_dialog(self) -> None:
         """Open the dialog to delete the active role."""
         if self.role_manager:
@@ -184,6 +225,7 @@ class App(tk.Tk):
     def _on_role_renamed(self) -> None:
         """Callback when a role is renamed: rebuild menu and update title."""
         self._update_window_title()
+        self._update_role_banner()
         self._rebuild_role_menu()
 
     def _on_role_deleted(self) -> None:

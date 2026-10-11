@@ -37,7 +37,7 @@ from ..periods import Period, period_for
 from .date_picker import DatePicker
 from .time_picker import TimePicker
 from ..storage import Storage
-from .style import ACCENT, BORDER, INK, SURFACE
+from .style import current_accent, BORDER, INK, SURFACE
 
 
 class RecordTab(ttk.Frame):
@@ -163,7 +163,7 @@ class RecordTab(ttk.Frame):
         self.notes_text = tk.Text(
             form, height=2, width=52, wrap="word", relief="solid",
             borderwidth=1, highlightthickness=1, highlightbackground=BORDER,
-            highlightcolor=ACCENT, background=SURFACE, foreground=INK,
+            highlightcolor=current_accent(), background=SURFACE, foreground=INK,
             insertbackground=INK, padx=6, pady=4, font=("Segoe UI", 10))
         self.notes_text.grid(row=4, column=1, columnspan=3, sticky="w",
                              padx=6, pady=3)

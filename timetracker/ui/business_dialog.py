@@ -12,7 +12,7 @@ from tkinter import ttk
 
 from ..models import BusinessProfile
 from ..storage import Storage
-from .style import ACCENT, BORDER, INK, SURFACE
+from .style import current_accent, BORDER, INK, SURFACE
 
 
 class BusinessDialog(tk.Toplevel):
@@ -59,7 +59,7 @@ class BusinessDialog(tk.Toplevel):
         self.address = tk.Text(card, height=4, width=32, wrap="word",
                                relief="solid", borderwidth=1,
                                highlightthickness=1, highlightbackground=BORDER,
-                               highlightcolor=ACCENT, background=SURFACE,
+                               highlightcolor=current_accent(), background=SURFACE,
                                foreground=INK, insertbackground=INK,
                                padx=6, pady=4, font=("Segoe UI", 10))
         self.address.grid(row=row, column=1, sticky="ew", pady=6)

@@ -14,7 +14,7 @@ from tkinter import ttk
 from typing import Callable, Optional
 
 from ..models import DISPLAY_DATE_FORMAT
-from .style import ACCENT, BORDER, HEADER, INK, MUTED, SEL, SURFACE
+from .style import current_accent, readable_fg, BORDER, HEADER, INK, MUTED, SEL, SURFACE
 
 _DAY_NAMES = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 
@@ -115,7 +115,7 @@ class DatePicker(ttk.Frame):
             for col, day in enumerate(week):
                 in_month = day.month == self._shown.month
                 if day == self._date:
-                    bg, fg = ACCENT, "white"
+                    bg, fg = current_accent(), readable_fg(current_accent())
                 elif day == today:
                     bg, fg = SEL, INK
                 else:

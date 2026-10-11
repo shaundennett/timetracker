@@ -12,22 +12,59 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
-# Pale-pink palette.
-BG = "#fbeef4"       # window background (pale pink)
-SURFACE = "#fffbfd"  # cards / entries (near-white, warm)
-INK = "#3d2b34"      # primary text (deep plum)
-MUTED = "#9a7f8b"    # secondary text
+# Neutral grey palette with a pink default accent (roles can override it).
+BG = "#eceef0"       # window background (neutral grey)
+SURFACE = "#fafafa"  # cards / entries (near-white)
+INK = "#2b2e33"      # primary text (charcoal)
+MUTED = "#80858c"    # secondary text
 ACCENT = "#d6558a"   # primary action / highlights (rose)
 ACCENT_HOVER = "#bf4778"
-DANGER = "#c0392b"   # distinct brick-red so it reads as "danger" on pink
-BORDER = "#f0cede"   # soft pink border
-ZEBRA = "#fdf1f6"    # alternate table rows
-SEL = "#f8d3e3"      # selected table row
-HEADER = "#f5d9e6"   # table heading / subtle fills
-HOVER = "#f7e4ec"    # button hover
+DANGER = "#c0392b"   # distinct brick-red so it reads as "danger" on grey
+BORDER = "#d3d6da"   # soft grey border
+ZEBRA = "#f3f4f6"    # alternate table rows
+SEL = "#d9dde3"      # selected table row
+HEADER = "#e0e3e7"   # table heading / subtle fills
+HOVER = "#e4e6ea"    # button hover
+
+_current_accent = ACCENT
 
 
-def apply_theme(root: tk.Misc) -> ttk.Style:
+def is_valid_hex(color: str) -> bool:
+    """True for a ``#rrggbb`` colour string."""
+    return (isinstance(color, str) and len(color) == 7 and color[0] == "#"
+            and all(c in "0123456789abcdefABCDEF" for c in color[1:]))
+
+
+def darken(color: str, factor: float = 0.88) -> str:
+    """Scale each RGB channel by ``factor`` (used for hover shades)."""
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return "#{:02x}{:02x}{:02x}".format(int(r * factor), int(g * factor),
+                                        int(b * factor))
+
+
+def readable_fg(color: str) -> str:
+    """White or dark ink, whichever is more legible on ``color``."""
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return INK if luminance > 0.6 else "#ffffff"
+
+
+def current_accent() -> str:
+    """The accent applied by the last :func:`apply_theme` call.
+
+    For plain ``tk`` widgets, which don't follow ttk styles.
+    """
+    return _current_accent
+
+
+def apply_theme(root: tk.Misc, accent: str = ACCENT) -> ttk.Style:
+    global _current_accent
+    if not is_valid_hex(accent):
+        accent = ACCENT
+    _current_accent = accent
+    accent_hover = ACCENT_HOVER if accent == ACCENT else darken(accent)
+    accent_fg = readable_fg(accent)
+
     style = ttk.Style(root)
     try:
         style.theme_use("clam")
@@ -52,13 +89,13 @@ def apply_theme(root: tk.Misc) -> ttk.Style:
                     font=("Segoe UI Semibold", 15))
     style.configure("SubHeading.TLabel", background=BG, foreground=MUTED,
                     font=("Segoe UI", 10))
-    style.configure("Total.TLabel", background=BG, foreground=ACCENT,
+    style.configure("Total.TLabel", background=BG, foreground=accent,
                     font=("Segoe UI Semibold", 12))
 
     # Cards / grouped sections.
     style.configure("TLabelframe", background=BG, bordercolor=BORDER,
                     relief="solid", borderwidth=1)
-    style.configure("TLabelframe.Label", background=BG, foreground=ACCENT,
+    style.configure("TLabelframe.Label", background=BG, foreground=accent,
                     font=("Segoe UI Semibold", 10))
 
     # Inputs.
@@ -73,13 +110,13 @@ def apply_theme(root: tk.Misc) -> ttk.Style:
                     bordercolor=BORDER, focuscolor=BG, padding=(12, 6))
     style.map("TButton",
               background=[("active", HOVER), ("pressed", SEL)],
-              bordercolor=[("active", ACCENT)])
+              bordercolor=[("active", accent)])
 
-    style.configure("Accent.TButton", background=ACCENT, foreground="#ffffff",
-                    bordercolor=ACCENT, padding=(14, 7),
+    style.configure("Accent.TButton", background=accent, foreground=accent_fg,
+                    bordercolor=accent, padding=(14, 7),
                     font=("Segoe UI Semibold", 10))
     style.map("Accent.TButton",
-              background=[("active", ACCENT_HOVER), ("pressed", ACCENT_HOVER)],
+              background=[("active", accent_hover), ("pressed", accent_hover)],
               foreground=[("disabled", "#e5e7eb")])
 
     style.configure("Danger.TButton", background=SURFACE, foreground=DANGER,

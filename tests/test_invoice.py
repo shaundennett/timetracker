@@ -145,3 +145,21 @@ def test_pdf_masthead_with_no_address_still_clears_the_title():
     pdf.set_margins(18, 16, 18)
     _draw_masthead(pdf, BusinessProfile(), pdf.epw)
     assert pdf.get_y() >= 16 + 12  # below the 12mm INVOICE title
+
+
+def test_role_code_is_alphanumeric_upper_and_capped():
+    from timetracker.invoice import role_code
+    assert role_code("Supply Teaching") == "SUPPLYTEAC"
+    assert role_code("a/b c!") == "ABC"
+    assert role_code("   ") == ""
+
+
+def test_suggested_number_includes_role_to_avoid_clashes():
+    from datetime import date
+    from timetracker.invoice import suggest_number_for_period
+    from timetracker.periods import month_of, week_of
+    m = month_of(date(2026, 7, 8))
+    assert suggest_number_for_period(m, "Tutoring") == "INV-TUTORING-202607"
+    assert suggest_number_for_period(m, "Exams") != suggest_number_for_period(m, "Tutoring")
+    assert suggest_number_for_period(week_of(date(2026, 7, 8)), "Exams") == "INV-EXAMS-2026W28"
+    assert suggest_number_for_period(m) == "INV-202607"  # no role: unchanged

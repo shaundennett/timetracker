@@ -8,7 +8,7 @@ from tkinter import ttk
 
 from .. import tax_report as tax_mod
 from ..storage import Storage
-from .style import ACCENT, BORDER, INK, SURFACE
+from .style import current_accent, BORDER, INK, SURFACE
 
 
 class TaxYearDialog(tk.Toplevel):
@@ -78,7 +78,7 @@ class TaxYearDialog(tk.Toplevel):
         self.preview = tk.Text(
             right, wrap="none", relief="solid", borderwidth=1,
             highlightthickness=1, highlightbackground=BORDER,
-            highlightcolor=ACCENT, font=("Consolas", 10),
+            highlightcolor=current_accent(), font=("Consolas", 10),
             background=SURFACE, foreground=INK, padx=12, pady=10,
             state="disabled",
         )

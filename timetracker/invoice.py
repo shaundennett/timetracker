@@ -63,16 +63,28 @@ def suggest_number(month_key: str) -> str:
     return f"INV-{month_key.replace('-', '')}"
 
 
-def suggest_number_for_period(period: Period) -> str:
+def role_code(role_name: str, max_len: int = 10) -> str:
+    """Short invoice-safe code for a role name: "Supply Teaching" -> "SUPPLYTEAC".
+
+    Letters and digits only, upper-cased, so it is safe in a file name.
+    """
+    return "".join(c for c in role_name if c.isalnum()).upper()[:max_len]
+
+
+def suggest_number_for_period(period: Period, role_name: str = "") -> str:
     """Default invoice number: INV-202607 for a month, INV-2026W28 for a week.
 
     Weeks use the ISO year and week number, so the week around New Year gets a
     number that matches the week rather than the calendar year of its Monday.
+
+    When ``role_name`` is given its code is included (INV-SUPPLY-202607) so
+    two roles invoicing the same period never produce the same reference.
     """
+    prefix = f"INV-{role_code(role_name)}-" if role_code(role_name) else "INV-"
     if period.kind == PERIOD_WEEK:
         year, week = period.iso_week
-        return f"INV-{year}W{week:02d}"
-    return suggest_number(f"{period.start.year:04d}-{period.start.month:02d}")
+        return f"{prefix}{year}W{week:02d}"
+    return f"{prefix}{period.start.year:04d}{period.start.month:02d}"
 
 # ---------------------------------------------------------------------- #
 # Text rendering (on-screen preview)

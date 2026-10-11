@@ -323,3 +323,57 @@ class TestRoleManagerRecovery:
         manifest = json.loads(manifest_file.read_text())
         assert "active" in manifest
         assert "roles" in manifest
+
+
+class TestRoleColor:
+    """Tests for per-role accent colours."""
+
+    def test_to_dict_omits_empty_color(self):
+        assert "color" not in Role(id="a", name="A").to_dict()
+
+    def test_to_dict_includes_color(self):
+        role = Role(id="a", name="A", color="#112233")
+        assert role.to_dict() == {"id": "a", "name": "A", "color": "#112233"}
+
+    def test_from_dict_tolerates_old_and_unknown_keys(self):
+        assert Role.from_dict({"id": "a", "name": "A"}).color == ""
+        role = Role.from_dict({"id": "a", "name": "A", "color": "#112233", "x": 1})
+        assert role.color == "#112233"
+
+    def test_set_role_color_persists(self, temp_data_dir):
+        rm = RoleManager(temp_data_dir)
+        role = rm.active_role()
+        rm.set_role_color(role.id, "#ABCDEF")
+        assert RoleManager(temp_data_dir).active_role().color == "#abcdef"
+
+    def test_set_role_color_resets_with_empty(self, temp_data_dir):
+        rm = RoleManager(temp_data_dir)
+        role = rm.active_role()
+        rm.set_role_color(role.id, "#abcdef")
+        rm.set_role_color(role.id, "")
+        assert rm.active_role().color == ""
+
+    @pytest.mark.parametrize("bad", ["red", "#fff", "#12345g", "abcdef"])
+    def test_set_role_color_rejects_bad_values(self, temp_data_dir, bad):
+        rm = RoleManager(temp_data_dir)
+        with pytest.raises(ValueError):
+            rm.set_role_color(rm.active_role().id, bad)
+
+    def test_set_role_color_unknown_role(self, temp_data_dir):
+        rm = RoleManager(temp_data_dir)
+        with pytest.raises(ValueError):
+            rm.set_role_color("missing", "#abcdef")
+
+    def test_create_role_with_color(self, temp_data_dir):
+        rm = RoleManager(temp_data_dir)
+        role = rm.create_role("Other", "#123456")
+        assert role.color == "#123456"
+        assert rm.active_role().color == ""  # colours are per role
+        with pytest.raises(ValueError):
+            rm.create_role("Bad", "nope")
+
+    def test_old_manifest_without_color_loads(self, temp_data_dir):
+        (temp_data_dir / "r1").mkdir()
+        (temp_data_dir / "roles.json").write_text(
+            json.dumps({"active": "r1", "roles": [{"id": "r1", "name": "Old"}]}))
+        assert RoleManager(temp_data_dir).active_role().color == ""

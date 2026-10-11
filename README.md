@@ -43,7 +43,7 @@ timetracker/
     business_dialog.py edit your business/invoice details
     invoice_dialog.py  create, preview, save-as-PDF, and print invoices
     tax_year_dialog.py UK tax year summary report
-    role_dialog.py     create/rename/delete roles
+    role_dialog.py     create/rename/recolour/delete roles
     style.py          app-wide ttk theme (colours, fonts, tables, buttons)
   __main__.py      entry point
 data/              data root (contains one folder per role + roles.json manifest)
@@ -110,6 +110,10 @@ To create and switch roles:
    — no data loss, and your place in the active role is remembered.
 4. **Rename active role…** and **Delete active role…** manage roles. Rename is
    safe; delete removes the role and all its data (with confirmation).
+5. **Change colour of active role…** (v0.5.0+) sets the role's accent colour
+   (buttons, headings, totals, focus outlines) from a preset swatch row or a
+   custom colour, so you can tell roles apart at a glance. You can also pick a
+   colour when creating a role.
 
 The window title shows the active role name. On first upgrade from v0.3 or
 earlier, your existing data is migrated into a "Default" role with no loss.
