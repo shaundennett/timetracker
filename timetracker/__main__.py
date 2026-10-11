@@ -4,9 +4,14 @@ An optional data directory can be passed to keep separate datasets (e.g. for
 testing) apart from the default location.
 
 Data location:
-* Running from source (``python -m timetracker``): ``./data``.
+* Running from source (``python -m timetracker``): ``./data`` (data root containing
+  role subdirectories).
 * Running as a packaged .exe: a ``data`` folder next to the executable when
   that is writable (keeps the app portable), otherwise ``~/TimeTracker/data``.
+
+The data directory is now a root containing one subdirectory per role, plus
+a roles.json manifest file. On first upgrade, existing data files are migrated
+into a Default role (copy-not-move, so originals remain as backup).
 """
 
 from __future__ import annotations
@@ -61,18 +66,19 @@ def main() -> None:
     # Imported here so a frozen build resolves them as part of the package.
     ensure_runtime_dependencies()
     from . import __version__
-    from .storage import Storage
+    from .roles import RoleManager
     from .ui.app import App
 
     parser = argparse.ArgumentParser(prog="timetracker",
                                      description="Record billable client visits.")
     parser.add_argument("--data-dir", default=None,
-                        help="Directory for JSON data files.")
+                        help="Data root directory (contains role subdirectories and roles.json).")
     parser.add_argument("--version", action="version",
                         version=f"%(prog)s {__version__}")
     args = parser.parse_args()
 
-    App(storage=Storage(args.data_dir or default_data_dir())).mainloop()
+    role_manager = RoleManager(args.data_dir or default_data_dir())
+    App(role_manager=role_manager).mainloop()
 
 
 if __name__ == "__main__":
